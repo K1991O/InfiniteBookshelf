@@ -1,24 +1,19 @@
 /**
- * Sample React Native App
- * https://github.com/facebook/react-native
+ * Infinite Bookshelf App
  *
  * @format
  */
 
 import React, { useRef } from 'react';
-import { StatusBar, View, Image, FlatList, Platform, Animated, Text } from 'react-native';
+import { StatusBar, View, Platform, Animated } from 'react-native';
 import {
   SafeAreaProvider,
   SafeAreaView,
 } from 'react-native-safe-area-context';
 import { styles } from './view/styles/Main';
-
-// Generate a large array of items for infinite scrolling
-const generateItems = (count: number) => {
-  return Array.from({ length: count }, (_, i) => ({ id: i.toString() }));
-};
-
-const ITEM_COUNT = 1000; // Large enough to feel infinite
+import { LibraryView } from './view/LibraryView';
+import { NavigationBar } from './view/NavigationBar';
+import { BottomTabBar } from './view/BottomTabBar';
 
 function App() {
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -77,7 +72,7 @@ function App() {
 
   const bottomBarTranslateY = scrollDirection.interpolate({
     inputRange: [0, 1],
-    outputRange: [150, 0],
+    outputRange: [150, 20],
   });
 
   const barOpacity = scrollDirection;
@@ -90,7 +85,7 @@ function App() {
         translucent={Platform.OS === 'android'}
       />
       <View style={styles.appContainer}>
-        <AppContent onScroll={handleScroll} />
+        <LibraryView onScroll={handleScroll} />
         {/* Static white background for status bar area */}
         <SafeAreaView style={styles.statusBarArea} edges={['top']} pointerEvents="none" />
         {/* Navigation bar that slides out */}
@@ -118,11 +113,7 @@ function App() {
           ]}
         >
           <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']} pointerEvents="box-none">
-
-            
-
             <BottomTabBar />
-
           </SafeAreaView>
         </Animated.View>
       </View>
@@ -130,68 +121,5 @@ function App() {
   );
 }
 
-function NavigationBar() {
-  return (
-    <View style={styles.navBar}>
-      <Text style={styles.topBarTitle}>Library</Text>
-    </View>
-  );
-}
-
-function BottomTabBar() {
-  return (
-    <View style={styles.bottomTabBar}>
-      <Image
-        source={require('./assets/books_icon.png')}
-        style={styles.bottomTabBarIcon}
-        resizeMode="cover"
-      />
-      <Text>Library</Text>
-    </View>
-  );
-}
-
-
-
-function AppContent({ onScroll }: { onScroll: any }) {
-  const renderLibraryItem = ({ item }: { item: { id: string } }) => {
-    return (
-      <Image
-        source={require('./assets/library_2.jpg')}
-        style={styles.libraryItem}
-        resizeMode="cover"
-      />
-    );
-  };
-
-  const getItemLayout = (_: any, index: number) => {
-    const ITEM_HEIGHT = 300;
-    return {
-      length: ITEM_HEIGHT,
-      offset: ITEM_HEIGHT * index,
-      index,
-    };
-  };
-
-  return (
-    <View style={styles.container}>
-
-      <FlatList
-        data={generateItems(ITEM_COUNT)}
-        renderItem={renderLibraryItem}
-        keyExtractor={(item) => item.id}
-        getItemLayout={getItemLayout}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={5}
-        updateCellsBatchingPeriod={50}
-        initialNumToRender={3}
-        windowSize={5}
-        style={styles.list}
-      />
-    </View>
-  );
-}
 
 export default App;

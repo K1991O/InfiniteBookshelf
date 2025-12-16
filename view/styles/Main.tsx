@@ -5,7 +5,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export const styles = StyleSheet.create({
     appContainer: {
       flex: 1,
-      backgroundColor: '#000',
+      backgroundColor: '#fff', // White background for Android safe area
     },
     topBarTitle: {
       fontSize: 20,
@@ -35,6 +35,14 @@ export const styles = StyleSheet.create({
       backgroundColor: '#fff',
       zIndex: 10,
     },
+    bottomSafeAreaBackground: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: '#fff',
+      zIndex: 5,
+    },
     navBarContainer: {
       backgroundColor: '#fff',
     },
@@ -52,12 +60,20 @@ export const styles = StyleSheet.create({
     list: {
       flex: 1,
     },
-    libraryItem: {
+    libraryItem4: {
+      width: SCREEN_WIDTH,
+      height: 700,
+    },
+    libraryItem2: {
+      width: SCREEN_WIDTH,
+      height: 300,
+    },
+    libraryItem2end: {
       width: SCREEN_WIDTH,
       height: 300,
     },
     bottomTabBarIcon: {
-    marginTop: 10,
+      marginTop: -10,
       width: 22,
       height: 20,
     },
@@ -69,7 +85,7 @@ export const styles = StyleSheet.create({
     },
     bottomTabBar: {
       backgroundColor: '#fff',
-      height: 40,
+      height: 68,
       justifyContent: 'center',
       alignItems: 'center',
       borderTopWidth: 0,
