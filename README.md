@@ -103,8 +103,16 @@ npx react-native run-android
 3. Plug phone into Mac
 4. Then:
 
+pair without USB
+- Wireless debugging in the settings.
+- Pair device with pairing code
+
 ```bash
-adb reverse tcp:8081 tcp:8081
+adb pair device_ip_address:port_number
+```
+
+```bash
+adb reverse tcp:8081 tcp:8081 <-- allows phone to access server on computer as if on device itslef
 npx react-native run-android
 ```
 
