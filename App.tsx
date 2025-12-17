@@ -4,7 +4,7 @@
  * @format
  */
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { StatusBar, View, Platform, Animated } from 'react-native';
 import {
   SafeAreaProvider,
@@ -14,8 +14,11 @@ import { styles } from './view/styles/Main';
 import { LibraryView } from './view/LibraryView';
 import { NavigationBar } from './view/NavigationBar';
 import { BottomTabBar } from './view/BottomTabBar';
+import { FloatingActionButton } from './view/FloatingActionButton';
+import { BookSearchSheet } from './view/BookSearchSheet';
 
 function App() {
+  const [isSearchSheetVisible, setIsSearchSheetVisible] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
   const scrollDirection = useRef(new Animated.Value(1)).current; // 1 = visible, 0 = hidden
@@ -76,6 +79,11 @@ function App() {
   });
 
   const barOpacity = scrollDirection;
+  
+  const fabTranslateX = scrollDirection.interpolate({
+    inputRange: [0, 1],
+    outputRange: [200, 0],
+  });
 
   return (
     <SafeAreaProvider>
@@ -116,6 +124,26 @@ function App() {
             <BottomTabBar />
           </SafeAreaView>
         </Animated.View>
+        {/* Floating Action Button */}
+        <Animated.View
+          style={[
+            {
+              transform: [
+                { translateX: fabTranslateX },
+              ],
+              opacity: barOpacity,
+            },
+          ]}
+        >
+          <FloatingActionButton onPress={() => {
+            setIsSearchSheetVisible(true);
+          }} />
+        </Animated.View>
+        {/* Book Search Sheet */}
+        <BookSearchSheet
+          visible={isSearchSheetVisible}
+          onClose={() => setIsSearchSheetVisible(false)}
+        />
       </View>
     </SafeAreaProvider >
   );
