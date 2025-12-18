@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Image, FlatList, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styles } from './styles/Main';
+import { BookshelfOverlay } from './BookshelfOverlay';
+import { sampleBooks } from '../types/Book';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -102,8 +104,7 @@ export function LibraryView({ onScroll }: LibraryViewProps) {
     return fullPatternsOffset + patternOffset;
   };
 
-  const renderLibraryItem = ({ item }: { item: { id: string } }) => {
-    const index = parseInt(item.id);
+  const renderLibraryItem = ({ item, index }: { item: { id: string }, index: number }) => {
     const imageIndex = index % imagePattern.length;
     const imageSource = imagePattern[imageIndex];
     const itemStyle = imageStyles[imageIndex] || {
@@ -111,12 +112,25 @@ export function LibraryView({ onScroll }: LibraryViewProps) {
       height: patternHeights[imageIndex] || 300,
     };
 
+    // Only render the overlay on the first item
+    const shouldRenderOverlay = index === 0;
+
     return (
-      <Image
-        source={imageSource}
-        style={itemStyle}
-        resizeMode="cover"
-      />
+      <View>
+        <Image
+          source={imageSource}
+          style={itemStyle}
+          resizeMode="cover"
+        />
+        {shouldRenderOverlay && (
+          <BookshelfOverlay 
+            books={Array(20).fill(sampleBooks).flat()} 
+            patternHeights={patternHeights}
+            totalContentHeight={totalContentHeight}
+            topOffset={0}
+          />
+        )}
+      </View>
     );
   };
 
@@ -132,6 +146,9 @@ export function LibraryView({ onScroll }: LibraryViewProps) {
     };
   };
 
+  // Calculate total content height for all items
+  const totalContentHeight = patternHeights.reduce((sum, height) => sum + height, 0) * ITEM_COUNT;
+
   return (
     <View style={styles.container}>
       <FlatList
@@ -141,7 +158,7 @@ export function LibraryView({ onScroll }: LibraryViewProps) {
         getItemLayout={getItemLayout}
         onScroll={onScroll}
         scrollEventThrottle={16}
-        removeClippedSubviews={true}
+        removeClippedSubviews={false}
         maxToRenderPerBatch={5}
         updateCellsBatchingPeriod={50}
         initialNumToRender={3}
