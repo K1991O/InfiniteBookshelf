@@ -66,8 +66,12 @@ export interface BookDetailsResponse {
 
 export async function searchBooks(query: string): Promise<Book[]> {
   try {
+    // Check if query is 10 or more digits (likely an ISBN)
+    const isISBN = /^\d{10,}$/.test(query.trim());
+    const searchQuery = isISBN ? `isbn:${query.trim()}` : query;
+    
     const response = await fetch(
-      `${BASE_URL}/volumes?q=${encodeURIComponent(query)}&key=${GOOGLE_CLOUD_KEY}`
+      `${BASE_URL}/volumes?q=${encodeURIComponent(searchQuery)}&key=${GOOGLE_CLOUD_KEY}`
     );
     const data: BooksSearchResponse = await response.json();
     

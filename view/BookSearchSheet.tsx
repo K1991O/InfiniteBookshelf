@@ -18,9 +18,11 @@ import {
   InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { searchBooks, getBookDetails, Book as ApiBook, BookDetails } from '../services/booksApi';
 import { Book } from '../types/Book';
 import { saveBook } from '../services/bookStorage';
+import { BarcodeScanner } from './BarcodeScanner';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -40,10 +42,123 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
   const [addingBookId, setAddingBookId] = useState<string | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [keyboardReady, setKeyboardReady] = useState(false);
+  const [scannerVisible, setScannerVisible] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<TextInput>(null);
   const isHandlingBookPress = useRef(false);
+  const scannedISBNs = useRef<Set<string>>(new Set());
+  const scanSuccessful = useRef(false);
+  
+  const handleBarcodeScanned = async (isbn: string) => {
+    // Prevent duplicate scans
+    if (isScanning || scannedISBNs.current.has(isbn)) {
+      return;
+    }
+    
+    scannedISBNs.current.add(isbn);
+    setIsScanning(true);
+    
+    // Provide satisfying pop haptic feedback when barcode is detected
+    ReactNativeHapticFeedback.trigger('impactHeavy', {
+      enableVibrateFallback: true,
+      ignoreAndroidSystemSettings: false,
+    });
+    
+    // Mark as successful and close scanner
+    scanSuccessful.current = true;
+    setScannerVisible(false);
+    
+    // Notify parent that we're adding a book
+    if (onBookAdding) {
+      onBookAdding();
+    }
+    
+    try {
+      // Search for book by ISBN
+      const results = await searchBooks(isbn);
+      
+      if (results.length > 0) {
+        // Get book details and add it
+        const book = results[0];
+        setLoadingDetails(true);
+        const details = await getBookDetails(book.id);
+        setLoadingDetails(false);
+        
+        if (details) {
+          // Convert to our Book type and save to storage
+          const bookToSave = convertToBook(book, details);
+          
+          // Simulate loading time for skeleton animation
+          await new Promise<void>((resolve) => {
+            setTimeout(() => {
+              resolve();
+            }, 1000);
+          });
+          
+          await saveBook(bookToSave);
+          
+          // Provide success haptic feedback
+          ReactNativeHapticFeedback.trigger('notificationSuccess', {
+            enableVibrateFallback: true,
+            ignoreAndroidSystemSettings: false,
+          });
+          
+          // Notify parent that a book was added
+          if (onBookAdded) {
+            onBookAdded();
+          }
+          
+          // Show success message
+          if (Platform.OS === 'android') {
+            ToastAndroid.show('Book added successfully!', ToastAndroid.SHORT);
+          }
+          
+          // Close both scanner and search sheet
+          setScannerVisible(false);
+          Keyboard.dismiss();
+          onClose();
+        } else {
+          throw new Error('Book details not found');
+        }
+      } else {
+        throw new Error('Book not found');
+      }
+    } catch (error) {
+      console.error('Error scanning barcode:', error);
+      
+      // Mark scan as unsuccessful
+      scanSuccessful.current = false;
+      
+      // Provide error haptic feedback
+      ReactNativeHapticFeedback.trigger('notificationError', {
+        enableVibrateFallback: true,
+        ignoreAndroidSystemSettings: false,
+      });
+      
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('Book not found. Please try again.', ToastAndroid.SHORT);
+      } else {
+        Alert.alert('Error', 'Book not found. Please try again.');
+      }
+    } finally {
+      setIsScanning(false);
+      scannedISBNs.current.clear();
+    }
+  };
+  
+  const handleCameraPress = () => {
+    scanSuccessful.current = false;
+    setScannerVisible(true);
+    scannedISBNs.current.clear();
+    // Dismiss keyboard to prevent it from showing behind camera
+    Keyboard.dismiss();
+  };
+  
+  const handleScannerClose = () => {
+    setScannerVisible(false);
+  };
 
   useEffect(() => {
     if (visible) {
@@ -329,8 +444,9 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
   );
 
   return (
+    <>
     <Modal
-      visible={visible}
+      visible={visible && !scannerVisible}
       transparent
       animationType="none"
       onRequestClose={onClose}
@@ -392,7 +508,13 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
                     autoFocus={false}
                     showSoftInputOnFocus={true}
                   />
-
+                  <TouchableOpacity
+                    style={styles.cameraButton}
+                    onPress={handleCameraPress}
+                    activeOpacity={0.7}
+                  >
+                    <Image source={require('../assets/camera.png')} style={styles.cameraIcon} />
+                  </TouchableOpacity>
                 </View>
               </View>
             </TouchableOpacity>
@@ -414,6 +536,15 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
         </Animated.View>
       </View>
     </Modal>
+      
+    {/* Barcode Scanner Component */}
+    <BarcodeScanner
+      visible={scannerVisible}
+      onClose={handleScannerClose}
+      onBarcodeScanned={handleBarcodeScanned}
+      isScanning={isScanning}
+    />
+    </>
   );
 }
 
@@ -484,14 +615,28 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   searchInput: {
-    width: '100%',
+    width: '87%',
     height: 44,
     borderWidth: 2,
     borderColor: '#564136',
     borderRadius: 1000,
     paddingHorizontal: 12,
     paddingLeft: 40,
+    paddingRight: 50,
     fontSize: 16,
+  },
+  cameraButton: {
+    position: 'absolute',
+    right: 12,
+    top: 10,
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cameraIcon: {
+    width: 24,
+    height: 21.33,
   },
   searchIcon: {
     position: 'absolute',
