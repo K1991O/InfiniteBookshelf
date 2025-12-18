@@ -19,11 +19,22 @@ import { BookSearchSheet } from './view/BookSearchSheet';
 
 function App() {
   const [isSearchSheetVisible, setIsSearchSheetVisible] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [loadingBookCount, setLoadingBookCount] = useState(0);
   const scrollY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
   const scrollDirection = useRef(new Animated.Value(1)).current; // 1 = visible, 0 = hidden
   const isScrollingDown = useRef(false);
   const isVisible = useRef(true);
+
+  const handleBookAdded = () => {
+    setRefreshTrigger(prev => prev + 1);
+    setLoadingBookCount(0);
+  };
+
+  const handleBookAdding = () => {
+    setLoadingBookCount(1);
+  };
 
   const handleScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -93,7 +104,11 @@ function App() {
         translucent={Platform.OS === 'android'}
       />
       <View style={styles.appContainer}>
-        <LibraryView onScroll={handleScroll} />
+        <LibraryView 
+          onScroll={handleScroll} 
+          refreshTrigger={refreshTrigger}
+          loadingBookCount={loadingBookCount}
+        />
         {/* Static white background for status bar area */}
         <SafeAreaView style={styles.statusBarArea} edges={['top']} pointerEvents="none" />
         {/* Navigation bar that slides out */}
@@ -142,7 +157,12 @@ function App() {
         {/* Book Search Sheet */}
         <BookSearchSheet
           visible={isSearchSheetVisible}
-          onClose={() => setIsSearchSheetVisible(false)}
+          onClose={() => {
+            setIsSearchSheetVisible(false);
+            setLoadingBookCount(0);
+          }}
+          onBookAdded={handleBookAdded}
+          onBookAdding={handleBookAdding}
         />
       </View>
     </SafeAreaProvider >

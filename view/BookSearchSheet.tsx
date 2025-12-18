@@ -18,21 +18,26 @@ import {
   InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { searchBooks, getBookDetails, Book, BookDetails } from '../services/booksApi';
+import { searchBooks, getBookDetails, Book as ApiBook, BookDetails } from '../services/booksApi';
+import { Book } from '../types/Book';
+import { saveBook } from '../services/bookStorage';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface BookSearchSheetProps {
   visible: boolean;
   onClose: () => void;
+  onBookAdded?: () => void;
+  onBookAdding?: () => void;
 }
 
-export function BookSearchSheet({ visible, onClose }: BookSearchSheetProps) {
+export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }: BookSearchSheetProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [books, setBooks] = useState<Book[]>([]);
+  const [books, setBooks] = useState<ApiBook[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedBook, setSelectedBook] = useState<BookDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [addingBookId, setAddingBookId] = useState<string | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [keyboardReady, setKeyboardReady] = useState(false);
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -180,9 +185,49 @@ export function BookSearchSheet({ visible, onClose }: BookSearchSheetProps) {
     await performSearch(searchQuery);
   };
 
-  const handleBookPress = async (book: Book) => {
+  // Helper function to convert API BookDetails to our Book type
+  const convertToBook = (apiBook: ApiBook, details: BookDetails): Book => {
+    // Parse dimensions from strings (e.g., "20.0 cm" or "20.0") to numbers
+    // Returns null if dimension is missing so we can apply specific defaults
+    const parseDimension = (dim?: string): number | null => {
+      if (!dim) return null;
+      const match = dim.match(/(\d+\.?\d*)/);
+      return match ? parseFloat(match[1]) : null;
+    };
+
+    // Parse each dimension, using null to indicate missing values
+    const parsedHeight = parseDimension(details.dimensions?.height);
+    const parsedWidth = parseDimension(details.dimensions?.width);
+    const parsedThickness = parseDimension(details.dimensions?.thickness);
+
+    // Apply defaults for missing dimensions
+    const height = parsedHeight ?? 20.0; // Default height
+    const width = parsedWidth ?? 12.7; // Default width (based on sample books)
+    const thickness = parsedThickness ?? 2.1; // Default thickness as specified
+
+    return {
+      id: `${details.id}-${Date.now()}`, // Unique ID
+      googleId: details.id,
+      title: details.title,
+      author: details.authors?.join(', ') || 'Unknown Author',
+      thickness,
+      height,
+      width,
+      smallThumbnail: details.smallThumbnail || apiBook.smallThumbnail || '',
+      ISBN10: details.ISBN10,
+      ISBN13: details.ISBN13,
+    };
+  };
+
+  const handleBookPress = async (book: ApiBook) => {
     // Set flag to prevent keyboard dismiss from auto-closing sheet
     isHandlingBookPress.current = true;
+    setAddingBookId(book.id);
+    
+    // Notify parent that we're adding a book (to show skeleton)
+    if (onBookAdding) {
+      onBookAdding();
+    }
     
     try {
       setLoadingDetails(true);
@@ -190,43 +235,31 @@ export function BookSearchSheet({ visible, onClose }: BookSearchSheetProps) {
       setLoadingDetails(false);
 
       if (details) {
-        setSelectedBook(details);
+        // Convert to our Book type and save to storage
+        const bookToSave = convertToBook(book, details);
         
-        if (Platform.OS === 'android') {
-          // On Android: show toast, then close everything
-          if (details.dimensions) {
-            const { height, width, thickness } = details.dimensions;
-            const message = `Height: ${height || 'N/A'}\nWidth: ${width || 'N/A'}\nThickness: ${thickness || 'N/A'}`;
-            ToastAndroid.show(message, ToastAndroid.LONG);
-          } else {
-            ToastAndroid.show('Dimensions: N/A', ToastAndroid.SHORT);
-          }
-          
-          // Wait a bit for toast to register, then close
+        // Simulate loading time for skeleton animation (at least 1 second)
+        await new Promise<void>((resolve) => {
           setTimeout(() => {
-            isHandlingBookPress.current = false;
-            Keyboard.dismiss();
-            onClose();
-          }, 100);
-        } else {
-          // On iOS: close modal first (removes backdrop), then show alert
-          isHandlingBookPress.current = false;
-          Keyboard.dismiss();
-          onClose();
-          
-          // Show alert after modal closes
-          setTimeout(() => {
-            if (details.dimensions) {
-              const { height, width, thickness } = details.dimensions;
-              const message = `Height: ${height || 'N/A'}\nWidth: ${width || 'N/A'}\nThickness: ${thickness || 'N/A'}`;
-              Alert.alert('Book Dimensions', message);
-            } else {
-              Alert.alert('Book Dimensions', 'Dimensions: N/A');
-            }
-          }, 300);
+            resolve();
+          }, 1000);
+        });
+        
+        await saveBook(bookToSave);
+        
+        // Notify parent that a book was added
+        if (onBookAdded) {
+          onBookAdded();
         }
+        
+        // Close the sheet
+        isHandlingBookPress.current = false;
+        setAddingBookId(null);
+        Keyboard.dismiss();
+        onClose();
       } else {
         // If details is null, show error
+        setAddingBookId(null);
         if (Platform.OS === 'android') {
           ToastAndroid.show('Failed to load book details', ToastAndroid.SHORT);
           setTimeout(() => {
@@ -245,6 +278,7 @@ export function BookSearchSheet({ visible, onClose }: BookSearchSheetProps) {
       }
     } catch (error) {
       setLoadingDetails(false);
+      setAddingBookId(null);
       console.error('Error handling book press:', error);
       
       if (Platform.OS === 'android') {
@@ -265,7 +299,7 @@ export function BookSearchSheet({ visible, onClose }: BookSearchSheetProps) {
     }
   };
 
-  const renderBookItem = ({ item }: { item: Book }) => (
+  const renderBookItem = ({ item }: { item: ApiBook }) => (
     <TouchableOpacity
       style={styles.bookItem}
       onPress={() => handleBookPress(item)}

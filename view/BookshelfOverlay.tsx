@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, Dimensions, Platform } from 'react-native';
 import { Book } from '../types/Book';
 import { BookSpine } from './BookSpine';
+import { BookSkeleton } from './BookSkeleton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -22,6 +23,7 @@ interface BookshelfOverlayProps {
   patternHeights: number[]; // Heights of each image in the pattern
   totalContentHeight: number; // Total height of all content
   topOffset: number; // Top padding offset
+  loadingBookCount?: number; // Number of books currently loading (to show skeletons)
 }
 
 interface BookPosition {
@@ -30,7 +32,7 @@ interface BookPosition {
   y: number;
 }
 
-export function BookshelfOverlay({ books }: BookshelfOverlayProps) {
+export function BookshelfOverlay({ books, loadingBookCount = 0 }: BookshelfOverlayProps) {
   // Calculate how many shelves we need based on book count
   const estimateRequiredShelves = (): number => {
     const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
@@ -110,17 +112,100 @@ export function BookshelfOverlay({ books }: BookshelfOverlayProps) {
 
   const bookPositions = calculateBookPositions();
 
+  // Calculate positions for loading skeletons
+  const calculateLoadingSkeletonPositions = (): BookPosition[] => {
+    if (loadingBookCount === 0) return [];
+    
+    const skeletonPositions: BookPosition[] = [];
+    const shelfPositions = calculateShelfPositions();
+    const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
+    
+    // Default skeleton dimensions
+    const defaultThickness = 2.5;
+    const defaultHeight = 20;
+    const skeletonWidthPx = (defaultThickness / 40) * ShelfHeight;
+    const skeletonHeight = (ShelfHeight * defaultHeight / 40);
+    
+    // Start from the last book position, or start of first shelf if no books
+    let currentX = 0;
+    let currentShelfIndex = 0;
+    
+    if (bookPositions.length > 0) {
+      const lastPosition = bookPositions[bookPositions.length - 1];
+      const lastBookWidthPx = (lastPosition.book.thickness / 40) * ShelfHeight;
+      currentX = lastPosition.x + lastBookWidthPx + 2;
+      
+      // Find which shelf this book is on by finding the closest shelf below the book
+      // Books are positioned above the shelf, so we look for the shelf that's just below the book's bottom
+      const lastBookHeight = (ShelfHeight * lastPosition.book.height / 40);
+      const lastBookBottom = lastPosition.y + lastBookHeight;
+      
+      // Find the shelf index - the shelf Y should be just above or equal to the book's bottom
+      for (let i = shelfPositions.length - 1; i >= 0; i--) {
+        if (shelfPositions[i] <= lastBookBottom) {
+          currentShelfIndex = i;
+          break;
+        }
+      }
+      
+      // Check if we need to wrap to next shelf
+      if (currentX + skeletonWidthPx > CONTAINER_WIDTH) {
+        currentShelfIndex++;
+        currentX = 0;
+      }
+    }
+    
+    for (let i = 0; i < loadingBookCount; i++) {
+      // Check if skeleton would overflow the container
+      if (currentX + skeletonWidthPx > CONTAINER_WIDTH) {
+        currentShelfIndex++;
+        currentX = 0;
+      }
+      
+      const shelfY = shelfPositions[currentShelfIndex] || shelfPositions[0];
+      const y = shelfY - skeletonHeight;
+      
+      // Create a placeholder book for positioning
+      const placeholderBook: Book = {
+        id: `loading-${i}`,
+        googleId: '',
+        title: '',
+        author: '',
+        thickness: defaultThickness,
+        height: defaultHeight,
+        width: 12.7,
+        smallThumbnail: '',
+      };
+      
+      skeletonPositions.push({
+        book: placeholderBook,
+        x: currentX,
+        y,
+      });
+      
+      currentX += skeletonWidthPx + 2;
+    }
+    
+    return skeletonPositions;
+  };
+
+  const loadingSkeletonPositions = calculateLoadingSkeletonPositions();
+
   // Calculate the actual height needed based on the last book position
   const calculateActualHeight = (): number => {
-    if (bookPositions.length === 0) {
+    const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
+    
+    // Check both regular books and loading skeletons
+    const allPositions = [...bookPositions, ...loadingSkeletonPositions];
+    
+    if (allPositions.length === 0) {
       return 0;
     }
 
-    // Find the bottom-most book
-    const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
-    const lastBook = bookPositions[bookPositions.length - 1];
-    const actualBookHeight = (ShelfHeight * lastBook.book.height / 40);
-    const bottomY = lastBook.y + actualBookHeight;
+    // Find the bottom-most item
+    const lastItem = allPositions[allPositions.length - 1];
+    const actualItemHeight = (ShelfHeight * lastItem.book.height / 40);
+    const bottomY = lastItem.y + actualItemHeight;
 
     // Add some padding at the bottom
     const minHeight = bottomY + (ShelfHeight * 0.5);
@@ -155,6 +240,24 @@ export function BookshelfOverlay({ books }: BookshelfOverlayProps) {
             ]}
           >
             <BookSpine book={position.book} />
+          </View>
+        ))}
+        {loadingSkeletonPositions.map((position, index) => (
+          <View
+            key={`loading-skeleton-${index}`}
+            style={[
+              styles.bookContainer,
+              {
+                position: 'absolute',
+                left: position.x,
+                top: position.y,
+              },
+            ]}
+          >
+            <BookSkeleton 
+              thickness={position.book.thickness}
+              height={position.book.height}
+            />
           </View>
         ))}
       </View>

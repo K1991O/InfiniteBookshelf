@@ -20,6 +20,10 @@ export interface BookDetails {
     width?: string;
     thickness?: string;
   } | null;
+  smallThumbnail?: string;
+  thumbnail?: string;
+  ISBN10?: string;
+  ISBN13?: string;
 }
 
 export interface BooksSearchResponse {
@@ -49,6 +53,14 @@ export interface BookDetailsResponse {
       width?: string;
       thickness?: string;
     };
+    imageLinks?: {
+      smallThumbnail?: string;
+      thumbnail?: string;
+    };
+    industryIdentifiers?: Array<{
+      type: string;
+      identifier: string;
+    }>;
   };
 }
 
@@ -84,12 +96,29 @@ export async function getBookDetails(bookId: string): Promise<BookDetails | null
     );
     const data: BookDetailsResponse = await response.json();
     
+    // Extract ISBN from industryIdentifiers
+    let ISBN10: string | undefined;
+    let ISBN13: string | undefined;
+    if (data.volumeInfo.industryIdentifiers) {
+      for (const identifier of data.volumeInfo.industryIdentifiers) {
+        if (identifier.type === 'ISBN_10') {
+          ISBN10 = identifier.identifier;
+        } else if (identifier.type === 'ISBN_13') {
+          ISBN13 = identifier.identifier;
+        }
+      }
+    }
+    
     return {
       id: data.id,
       title: data.volumeInfo.title,
       subtitle: data.volumeInfo.subtitle || data.volumeInfo.authors?.join(', ') || '',
       authors: data.volumeInfo.authors,
       dimensions: data.volumeInfo.dimensions || null,
+      smallThumbnail: data.volumeInfo.imageLinks?.smallThumbnail?.replace('http://', 'https://'),
+      thumbnail: data.volumeInfo.imageLinks?.thumbnail?.replace('http://', 'https://'),
+      ISBN10,
+      ISBN13,
     };
   } catch (error) {
     console.error('Error fetching book details:', error);

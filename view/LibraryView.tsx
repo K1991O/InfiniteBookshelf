@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Image, FlatList, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styles } from './styles/Main';
 import { BookshelfOverlay } from './BookshelfOverlay';
-import { sampleBooks } from '../types/Book';
+import { Book } from '../types/Book';
+import { loadBooks } from '../services/bookStorage';
+import { BookSkeleton } from './BookSkeleton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -17,10 +19,14 @@ const NAV_BAR_HEIGHT = 44;
 
 interface LibraryViewProps {
   onScroll: any;
+  refreshTrigger?: number; // Increment this to trigger refresh
+  loadingBookCount?: number; // Number of books currently loading
 }
 
-export function LibraryView({ onScroll }: LibraryViewProps) {
+export function LibraryView({ onScroll, refreshTrigger, loadingBookCount = 0 }: LibraryViewProps) {
   const insets = useSafeAreaInsets();
+  const [books, setBooks] = useState<Book[]>([]);
+  const [loadingBooks, setLoadingBooks] = useState(true);
   
   // Pattern: one Library_4, three Library_2, one Library_2end
   const imagePattern = [
@@ -33,6 +39,24 @@ export function LibraryView({ onScroll }: LibraryViewProps) {
 
   const [patternHeights, setPatternHeights] = useState<number[]>([700, 300, 300, 300, 300]);
   const [imageStyles, setImageStyles] = useState<any[]>([]);
+
+  // Load books from storage
+  const loadBooksFromStorage = useCallback(async () => {
+    try {
+      setLoadingBooks(true);
+      const savedBooks = await loadBooks();
+      setBooks(savedBooks);
+    } catch (error) {
+      console.error('Error loading books:', error);
+    } finally {
+      setLoadingBooks(false);
+    }
+  }, []);
+
+  // Load books on mount and when refreshTrigger changes
+  useEffect(() => {
+    loadBooksFromStorage();
+  }, [loadBooksFromStorage, refreshTrigger]);
 
   // Load image dimensions and calculate heights
   useEffect(() => {
@@ -124,10 +148,11 @@ export function LibraryView({ onScroll }: LibraryViewProps) {
         />
         {shouldRenderOverlay && (
           <BookshelfOverlay 
-            books={Array(20).fill(sampleBooks).flat()} 
+            books={books}
             patternHeights={patternHeights}
             totalContentHeight={totalContentHeight}
             topOffset={0}
+            loadingBookCount={loadingBookCount}
           />
         )}
       </View>
