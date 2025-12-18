@@ -11,10 +11,11 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { launchImageLibrary, ImagePickerResponse, MediaType } from 'react-native-image-picker';
+import { launchCamera, ImagePickerResponse, MediaType } from 'react-native-image-picker';
 import ImagePicker from 'react-native-image-crop-picker';
 import { Book } from '../types/Book';
 import { removeBook, updateBook } from '../services/bookStorage';
+import { saveSpineImage, deleteSpineImage } from '../services/imageStorage';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.3;
@@ -159,8 +160,8 @@ export function BookDetailSheet({
     
     const currentBook = books[currentBookIndex];
     
-    // Show options to pick from library or remove existing
-    const options = ['Pick from Library'];
+    // Show options to take photo or remove existing
+    const options = ['Take Photo'];
     if (currentBook.spineThumbnail) {
       options.push('Remove Spine Image');
     }
@@ -173,13 +174,15 @@ export function BookDetailSheet({
         text: option,
         style: option === 'Remove Spine Image' ? 'destructive' : option === 'Cancel' ? 'cancel' : 'default',
         onPress: async () => {
-          if (option === 'Pick from Library') {
+          if (option === 'Take Photo') {
             try {
-              // First, pick an image from the library
-              launchImageLibrary(
+              // Launch camera to take a photo
+              launchCamera(
                 {
                   mediaType: 'photo' as MediaType,
                   quality: 1,
+                  saveToPhotos: false, // Don't save to camera roll
+                  cameraType: 'back',
                 },
                 async (response: ImagePickerResponse) => {
                   if (response.didCancel || !response.assets || response.assets.length === 0) {
@@ -205,22 +208,26 @@ export function BookDetailSheet({
                       width: cropWidth,
                       height: cropHeight,
                       cropping: true,
+                      mediaType: 'photo',
                       cropperToolbarTitle: 'Crop Spine Image',
-                      cropperChooseText: 'Choose',
+                      cropperChooseText: 'Save',
                       cropperCancelText: 'Cancel',
                       compressImageQuality: 0.8,
                       freeStyleCropEnabled: true,
                     });
                     
-                    // Update the book with the cropped image
-                    // Use file:// prefix if not already present for local files
-                    const imagePath = croppedImage.path.startsWith('file://') 
-                      ? croppedImage.path 
-                      : `file://${croppedImage.path}`;
+                    // Save the cropped image to app-specific directory
+                    const savedImagePath = await saveSpineImage(croppedImage.path, currentBook.id);
                     
+                    // Delete old spine image if it exists
+                    if (currentBook.spineThumbnail) {
+                      await deleteSpineImage(currentBook.spineThumbnail);
+                    }
+                    
+                    // Update the book with the saved image path
                     const updatedBook: Book = {
                       ...currentBook,
-                      spineThumbnail: imagePath,
+                      spineThumbnail: savedImagePath,
                     };
                     
                     await updateBook(updatedBook);
@@ -231,18 +238,23 @@ export function BookDetailSheet({
                     }
                   } catch (error: any) {
                     if (error.message !== 'User cancelled image selection' && error.message !== 'User cancelled image cropping') {
-                      console.error('Error cropping image:', error);
-                      Alert.alert('Error', 'Failed to crop image. Please try again.');
+                      console.error('Error processing image:', error);
+                      Alert.alert('Error', 'Failed to process image. Please try again.');
                     }
                   }
                 }
               );
             } catch (error) {
-              console.error('Error picking image:', error);
-              Alert.alert('Error', 'Failed to pick image. Please try again.');
+              console.error('Error launching camera:', error);
+              Alert.alert('Error', 'Failed to launch camera. Please try again.');
             }
           } else if (option === 'Remove Spine Image') {
             try {
+              // Delete the spine image file
+              if (currentBook.spineThumbnail) {
+                await deleteSpineImage(currentBook.spineThumbnail);
+              }
+              
               const updatedBook: Book = {
                 ...currentBook,
                 spineThumbnail: undefined,
@@ -333,7 +345,7 @@ export function BookDetailSheet({
                         activeOpacity={0.7}
                       >
                         <Text style={styles.spineButtonText}>
-                          {book.spineThumbnail ? 'Edit Spine Image' : 'Add Spine Image'}
+                          {book.spineThumbnail ? 'Retake Spine Photo' : 'Take Spine Photo'}
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity

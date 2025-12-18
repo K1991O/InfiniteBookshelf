@@ -13,6 +13,7 @@ const CONTAINER_WIDTH = SCREEN_WIDTH - (CONTAINER_PADDING * 2); // Actual contai
 const SHELF_HEIGHT_TO_WIDTH_RATIO = 0.5
 const SHELF_SEPARATION_TO_WIDTH_RATIO= 0.406
 const SHELF_START_TO_WIDTH_RATIO= 0.465
+const BOOK_SHELF_HEIGHT_IN_CM = 40;
 
 interface BookPosition {
   book: Book;
@@ -100,7 +101,7 @@ export function BookshelfOverlay({
       let shelvesNeeded = 1;
 
       for (const book of books) {
-        const bookWidthPx = (book.thickness / 40) * ShelfHeight;
+        const bookWidthPx = (book.thickness / BOOK_SHELF_HEIGHT_IN_CM) * ShelfHeight;
 
         // If book would overflow the container, wrap to next shelf
         if (currentX + bookWidthPx > CONTAINER_WIDTH) {
@@ -141,7 +142,7 @@ export function BookshelfOverlay({
 
       for (const book of books) {
         // Calculate book width based on thickness
-        const bookWidthPx = (book.thickness / 40) * ShelfHeight;
+        const bookWidthPx = (book.thickness / BOOK_SHELF_HEIGHT_IN_CM) * ShelfHeight;
 
         // Check if book would overflow the container - if so, wrap to next shelf
         if (currentX + bookWidthPx > CONTAINER_WIDTH) {
@@ -151,7 +152,7 @@ export function BookshelfOverlay({
         }
 
         // Calculate the actual height of this specific book
-        const actualBookHeight = (ShelfHeight * book.height / 40);
+        const actualBookHeight = (ShelfHeight * book.height / BOOK_SHELF_HEIGHT_IN_CM);
 
         // Get shelf Y position and calculate book top position
         const shelfY = calculatedShelfPositions[currentShelfIndex];
@@ -182,8 +183,8 @@ export function BookshelfOverlay({
     // Default skeleton dimensions
     const defaultThickness = 2.5;
     const defaultHeight = 20;
-    const skeletonWidthPx = (defaultThickness / 40) * ShelfHeight;
-    const skeletonHeight = (ShelfHeight * defaultHeight / 40);
+    const skeletonWidthPx = (defaultThickness / BOOK_SHELF_HEIGHT_IN_CM) * ShelfHeight;
+    const skeletonHeight = (ShelfHeight * defaultHeight / BOOK_SHELF_HEIGHT_IN_CM);
     
     // Start from the last book position, or start of first shelf if no books
     let currentX = 0;
@@ -191,12 +192,12 @@ export function BookshelfOverlay({
     
     if (bookPositions.length > 0) {
       const lastPosition = bookPositions[bookPositions.length - 1];
-      const lastBookWidthPx = (lastPosition.book.thickness / 40) * ShelfHeight;
+      const lastBookWidthPx = (lastPosition.book.thickness / BOOK_SHELF_HEIGHT_IN_CM) * ShelfHeight;
       currentX = lastPosition.x + lastBookWidthPx + 2;
       
       // Find which shelf this book is on by finding the closest shelf below the book
       // Books are positioned above the shelf, so we look for the shelf that's just below the book's bottom
-      const lastBookHeight = (ShelfHeight * lastPosition.book.height / 40);
+      const lastBookHeight = (ShelfHeight * lastPosition.book.height / BOOK_SHELF_HEIGHT_IN_CM);
       const lastBookBottom = lastPosition.y + lastBookHeight;
       
       // Find the shelf index - the shelf Y should be just above or equal to the book's bottom
@@ -261,7 +262,7 @@ export function BookshelfOverlay({
 
     // Find the bottom-most item
     const lastItem = allPositions[allPositions.length - 1];
-    const actualItemHeight = (ShelfHeight * lastItem.book.height / 40);
+    const actualItemHeight = (ShelfHeight * lastItem.book.height / BOOK_SHELF_HEIGHT_IN_CM);
     const bottomY = lastItem.y + actualItemHeight;
 
     // Add some padding at the bottom
