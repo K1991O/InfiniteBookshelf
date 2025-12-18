@@ -2,27 +2,27 @@ import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { Book, SHELF_HEIGHT_CM } from '../types/Book';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Constants for positioning
-const BOOK_HEIGHT_PERCENT = 0.217; // 21.7% of screen height
+// Constants for positioning - must match BookshelfOverlay
+const SHELF_HEIGHT_TO_WIDTH_RATIO = 0.5;
 
 interface BookSpineProps {
   book: Book;
 }
 
 export function BookSpine({ book }: BookSpineProps) {
-  // Calculate dimensions
-  // Book height is always 21.7% of screen height
-  const bookHeightPx = SCREEN_HEIGHT * BOOK_HEIGHT_PERCENT;
+  // Calculate dimensions - must match BookshelfOverlay calculation
+  // Use SCREEN_WIDTH * ratio to match positioning logic
+  const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
   
   // Calculate width based on the book's thickness relative to shelf height
   // If shelf is 40cm, and book thickness is, say, 2.1cm, 
-  // then width = (2.1 / 40) * bookHeight
-  const bookWidthPx = (book.thickness / SHELF_HEIGHT_CM) * bookHeightPx;
+  // then width = (2.1 / 40) * ShelfHeight
+  const bookWidthPx = (book.thickness / SHELF_HEIGHT_CM) * ShelfHeight;
   
   // Calculate actual book height
-  const actualBookHeight = (bookHeightPx * book.height / SHELF_HEIGHT_CM);
+  const actualBookHeight = (ShelfHeight * book.height / SHELF_HEIGHT_CM);
   
   // Calculate dynamic font size based on book height AND title length
   // Start with a base size from book height
@@ -79,7 +79,7 @@ export function BookSpine({ book }: BookSpineProps) {
 const styles = StyleSheet.create({
   bookSpine: {
     marginRight: 2,
-    borderRadius: 4,
+    borderRadius: 2,
     justifyContent: 'center',
     alignItems: 'center',
     borderColor: 'rgba(0, 0, 0, 0.2)',

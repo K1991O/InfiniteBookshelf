@@ -7,15 +7,12 @@ import { BookSkeleton } from './BookSkeleton';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Layout constants
-const FIRST_SHELF_START_PERCENT = 0.17; // 27% down from top
-const SHELF_HEIGHT_PERCENT = 0.217; // 21.7% of screen height
-const SHELF_SEPERATION_PERCENT = 0.19; // 24.2% of screen height
 const CONTAINER_PADDING = 25; // Left and right padding of the container
 const CONTAINER_WIDTH = SCREEN_WIDTH - (CONTAINER_PADDING * 2); // Actual container width
 
 const SHELF_HEIGHT_TO_WIDTH_RATIO = 0.5
 const SHELF_SEPARATION_TO_WIDTH_RATIO= 0.406
-const SHELF_START_TO_WIDTH_RATIO= 0.476
+const SHELF_START_TO_WIDTH_RATIO= 0.465
 
 
 interface BookshelfOverlayProps {
@@ -268,7 +265,7 @@ export function BookshelfOverlay({ books, loadingBookCount = 0 }: BookshelfOverl
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: Platform.OS === 'android' ? 4 : 0,
+    top: 0,
     left: 25,
     right: 25,
   },
