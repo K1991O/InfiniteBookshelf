@@ -42,6 +42,19 @@ export async function removeBook(bookId: string): Promise<void> {
   }
 }
 
+export async function updateBook(updatedBook: Book): Promise<void> {
+  try {
+    const existingBooks = await loadBooks();
+    const updatedBooks = existingBooks.map(b => 
+      b.id === updatedBook.id ? updatedBook : b
+    );
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedBooks));
+  } catch (error) {
+    console.error('Error updating book:', error);
+    throw error;
+  }
+}
+
 export async function clearBooks(): Promise<void> {
   try {
     await AsyncStorage.removeItem(STORAGE_KEY);
@@ -50,3 +63,5 @@ export async function clearBooks(): Promise<void> {
     throw error;
   }
 }
+
+

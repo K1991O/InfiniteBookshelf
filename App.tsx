@@ -4,7 +4,7 @@
  * @format
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { StatusBar, View, Platform, Animated } from 'react-native';
 import {
   SafeAreaProvider,
@@ -16,16 +16,37 @@ import { NavigationBar } from './view/NavigationBar';
 import { BottomTabBar } from './view/BottomTabBar';
 import { FloatingActionButton } from './view/FloatingActionButton';
 import { BookSearchSheet } from './view/BookSearchSheet';
+import { BookDetailSheet } from './view/BookDetailSheet';
+import { Book } from './types/Book';
+import { loadBooks } from './services/bookStorage';
 
 function App() {
   const [isSearchSheetVisible, setIsSearchSheetVisible] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [loadingBookCount, setLoadingBookCount] = useState(0);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [isDetailSheetVisible, setIsDetailSheetVisible] = useState(false);
+  const [selectedBookIndex, setSelectedBookIndex] = useState<number>(-1);
   const scrollY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
   const scrollDirection = useRef(new Animated.Value(1)).current; // 1 = visible, 0 = hidden
   const isScrollingDown = useRef(false);
   const isVisible = useRef(true);
+
+  // Load books from storage
+  const loadBooksFromStorage = useCallback(async () => {
+    try {
+      const savedBooks = await loadBooks();
+      setBooks(savedBooks);
+    } catch (error) {
+      console.error('Error loading books:', error);
+    }
+  }, []);
+
+  // Load books on mount and when refreshTrigger changes
+  useEffect(() => {
+    loadBooksFromStorage();
+  }, [loadBooksFromStorage, refreshTrigger]);
 
   const handleBookAdded = () => {
     setRefreshTrigger(prev => prev + 1);
@@ -35,6 +56,36 @@ function App() {
   const handleBookAdding = () => {
     setLoadingBookCount(1);
   };
+
+  const handleBookPress = useCallback((book: Book, index: number) => {
+    setSelectedBookIndex(index);
+    setIsDetailSheetVisible(true);
+  }, []);
+
+  const handleBookChange = useCallback((index: number) => {
+    if (index >= 0 && index < books.length) {
+      setSelectedBookIndex(index);
+    }
+  }, [books.length]);
+
+  const handleDetailSheetClose = useCallback(() => {
+    setIsDetailSheetVisible(false);
+    setSelectedBookIndex(-1);
+  }, []);
+
+  const handleBookDeleted = useCallback(() => {
+    // Clear the selected book
+    setSelectedBookIndex(-1);
+    setIsDetailSheetVisible(false);
+    
+    // Trigger refresh to reload books and recalculate positions
+    setRefreshTrigger(prev => prev + 1);
+  }, []);
+
+  const handleBookUpdated = useCallback(() => {
+    // Trigger refresh to reload books and update UI
+    setRefreshTrigger(prev => prev + 1);
+  }, []);
 
   const handleScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -108,6 +159,8 @@ function App() {
           onScroll={handleScroll} 
           refreshTrigger={refreshTrigger}
           loadingBookCount={loadingBookCount}
+          onBookPress={handleBookPress}
+          selectedBookId={selectedBookIndex >= 0 && selectedBookIndex < books.length ? books[selectedBookIndex]?.id : null}
         />
         {/* Static white background for status bar area */}
         <SafeAreaView style={styles.statusBarArea} edges={['top']} pointerEvents="none" />
@@ -163,6 +216,16 @@ function App() {
           }}
           onBookAdded={handleBookAdded}
           onBookAdding={handleBookAdding}
+        />
+        {/* Book Detail Sheet */}
+        <BookDetailSheet
+          visible={isDetailSheetVisible}
+          books={books}
+          currentBookIndex={selectedBookIndex}
+          onClose={handleDetailSheetClose}
+          onBookChange={handleBookChange}
+          onBookDeleted={handleBookDeleted}
+          onBookUpdated={handleBookUpdated}
         />
       </View>
     </SafeAreaProvider >

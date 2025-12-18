@@ -21,9 +21,17 @@ interface LibraryViewProps {
   onScroll: any;
   refreshTrigger?: number; // Increment this to trigger refresh
   loadingBookCount?: number; // Number of books currently loading
+  onBookPress?: (book: Book, index: number) => void;
+  selectedBookId?: string | null;
 }
 
-export function LibraryView({ onScroll, refreshTrigger, loadingBookCount = 0 }: LibraryViewProps) {
+export function LibraryView({ 
+  onScroll, 
+  refreshTrigger, 
+  loadingBookCount = 0,
+  onBookPress,
+  selectedBookId,
+}: LibraryViewProps) {
   const insets = useSafeAreaInsets();
   const [books, setBooks] = useState<Book[]>([]);
   const [loadingBooks, setLoadingBooks] = useState(true);
@@ -153,6 +161,8 @@ export function LibraryView({ onScroll, refreshTrigger, loadingBookCount = 0 }: 
             totalContentHeight={totalContentHeight}
             topOffset={0}
             loadingBookCount={loadingBookCount}
+            onBookPress={onBookPress}
+            selectedBookId={selectedBookId}
           />
         )}
       </View>
