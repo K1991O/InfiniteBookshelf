@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styles } from './styles/Main';
 import { BookshelfOverlay } from './BookshelfOverlay';
 import { Book } from '../types/Book';
-import { loadBooks } from '../services/bookStorage';
+import { loadBooks, saveBooks } from '../services/bookStorage';
 import { BookSkeleton } from './BookSkeleton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -65,6 +65,16 @@ export function LibraryView({
   useEffect(() => {
     loadBooksFromStorage();
   }, [loadBooksFromStorage, refreshTrigger]);
+
+  // Handle book reordering
+  const handleBooksReorder = useCallback(async (reorderedBooks: Book[]) => {
+    try {
+      await saveBooks(reorderedBooks);
+      setBooks(reorderedBooks);
+    } catch (error) {
+      console.error('Error saving reordered books:', error);
+    }
+  }, []);
 
   // Load image dimensions and calculate heights
   useEffect(() => {
@@ -163,6 +173,7 @@ export function LibraryView({
             loadingBookCount={loadingBookCount}
             onBookPress={onBookPress}
             selectedBookId={selectedBookId}
+            onBooksReorder={handleBooksReorder}
           />
         )}
       </View>

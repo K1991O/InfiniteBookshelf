@@ -10,6 +10,7 @@ import {
   SafeAreaProvider,
   SafeAreaView,
 } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { styles } from './view/styles/Main';
 import { LibraryView } from './view/LibraryView';
 import { NavigationBar } from './view/NavigationBar';
@@ -148,87 +149,89 @@ function App() {
   });
 
   return (
-    <SafeAreaProvider>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#fff"
-        translucent={Platform.OS === 'android'}
-      />
-      <View style={styles.appContainer}>
-        <LibraryView 
-          onScroll={handleScroll} 
-          refreshTrigger={refreshTrigger}
-          loadingBookCount={loadingBookCount}
-          onBookPress={handleBookPress}
-          selectedBookId={selectedBookIndex >= 0 && selectedBookIndex < books.length ? books[selectedBookIndex]?.id : null}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="#fff"
+          translucent={Platform.OS === 'android'}
         />
-        {/* Static white background for status bar area */}
-        <SafeAreaView style={styles.statusBarArea} edges={['top']} pointerEvents="none" />
-        {/* Navigation bar that slides out */}
-        <SafeAreaView style={styles.topSafeArea} edges={['top']} pointerEvents="box-none">
+        <View style={styles.appContainer}>
+          <LibraryView 
+            onScroll={handleScroll} 
+            refreshTrigger={refreshTrigger}
+            loadingBookCount={loadingBookCount}
+            onBookPress={handleBookPress}
+            selectedBookId={selectedBookIndex >= 0 && selectedBookIndex < books.length ? books[selectedBookIndex]?.id : null}
+          />
+          {/* Static white background for status bar area */}
+          <SafeAreaView style={styles.statusBarArea} edges={['top']} pointerEvents="none" />
+          {/* Navigation bar that slides out */}
+          <SafeAreaView style={styles.topSafeArea} edges={['top']} pointerEvents="box-none">
+            <Animated.View
+              style={[
+                styles.navBarContainer,
+                {
+                  transform: [{ translateY: navBarTranslateY }],
+                  opacity: barOpacity,
+                },
+              ]}
+            >
+              <NavigationBar />
+            </Animated.View>
+          </SafeAreaView>
+          {/* Bottom tab bar that slides out */}
           <Animated.View
             style={[
-              styles.navBarContainer,
+              styles.bottomTabBarContainer,
               {
-                transform: [{ translateY: navBarTranslateY }],
+                transform: [{ translateY: bottomBarTranslateY }],
                 opacity: barOpacity,
               },
             ]}
           >
-            <NavigationBar />
+            <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']} pointerEvents="box-none">
+              <BottomTabBar />
+            </SafeAreaView>
           </Animated.View>
-        </SafeAreaView>
-        {/* Bottom tab bar that slides out */}
-        <Animated.View
-          style={[
-            styles.bottomTabBarContainer,
-            {
-              transform: [{ translateY: bottomBarTranslateY }],
-              opacity: barOpacity,
-            },
-          ]}
-        >
-          <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']} pointerEvents="box-none">
-            <BottomTabBar />
-          </SafeAreaView>
-        </Animated.View>
-        {/* Floating Action Button */}
-        <Animated.View
-          style={[
-            {
-              transform: [
-                { translateX: fabTranslateX },
-              ],
-              opacity: barOpacity,
-            },
-          ]}
-        >
-          <FloatingActionButton onPress={() => {
-            setIsSearchSheetVisible(true);
-          }} />
-        </Animated.View>
-        {/* Book Search Sheet */}
-        <BookSearchSheet
-          visible={isSearchSheetVisible}
-          onClose={() => {
-            setIsSearchSheetVisible(false);
-            setLoadingBookCount(0);
-          }}
-          onBookAdded={handleBookAdded}
-          onBookAdding={handleBookAdding}
-        />
-        {/* Book Detail Sheet */}
-        <BookDetailSheet
-          visible={isDetailSheetVisible}
-          books={books}
-          currentBookIndex={selectedBookIndex}
-          onClose={handleDetailSheetClose}
-          onBookChange={handleBookChange}
-          onBookDeleted={handleBookDeleted}
-          onBookUpdated={handleBookUpdated}
-        />
-      </View>
-    </SafeAreaProvider >
+          {/* Floating Action Button */}
+          <Animated.View
+            style={[
+              {
+                transform: [
+                  { translateX: fabTranslateX },
+                ],
+                opacity: barOpacity,
+              },
+            ]}
+          >
+            <FloatingActionButton onPress={() => {
+              setIsSearchSheetVisible(true);
+            }} />
+          </Animated.View>
+          {/* Book Search Sheet */}
+          <BookSearchSheet
+            visible={isSearchSheetVisible}
+            onClose={() => {
+              setIsSearchSheetVisible(false);
+              setLoadingBookCount(0);
+            }}
+            onBookAdded={handleBookAdded}
+            onBookAdding={handleBookAdding}
+          />
+          {/* Book Detail Sheet */}
+          <BookDetailSheet
+            visible={isDetailSheetVisible}
+            books={books}
+            currentBookIndex={selectedBookIndex}
+            onClose={handleDetailSheetClose}
+            onBookChange={handleBookChange}
+            onBookDeleted={handleBookDeleted}
+            onBookUpdated={handleBookUpdated}
+          />
+        </View>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

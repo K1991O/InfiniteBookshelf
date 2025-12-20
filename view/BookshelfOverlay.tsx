@@ -1,5 +1,6 @@
-import React, { useRef, useEffect, useMemo, memo, useCallback } from 'react';
-import { View, StyleSheet, Dimensions, Platform, TouchableOpacity, Animated } from 'react-native';
+import React, { useMemo, memo, useCallback } from 'react';
+import { View, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import Sortable from 'react-native-sortables';
 import { Book } from '../types/Book';
 import { BookSpine } from './BookSpine';
 import { BookSkeleton } from './BookSkeleton';
@@ -7,82 +8,66 @@ import { BookSkeleton } from './BookSkeleton';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Layout constants
-const CONTAINER_PADDING = 25; // Left and right padding of the container
-const CONTAINER_WIDTH = SCREEN_WIDTH - (CONTAINER_PADDING * 2); // Actual container width
+const CONTAINER_PADDING = 25;
+const CONTAINER_WIDTH = SCREEN_WIDTH - (CONTAINER_PADDING * 2);
 
-const SHELF_HEIGHT_TO_WIDTH_RATIO = 0.5
-const SHELF_SEPARATION_TO_WIDTH_RATIO= 0.406
-const SHELF_START_TO_WIDTH_RATIO= 0.465
-const BOOK_SHELF_HEIGHT_IN_CM = 40;
+// Shelf positioning constants (as ratios of screen width)
+// You can override these by passing shelfStartOffset and shelfSeparation props
+const SHELF_HEIGHT_TO_WIDTH_RATIO = 0.5;        // Height of the shelf area
+const SHELF_SEPARATION_TO_WIDTH_RATIO = 0.406;  // Distance between shelves (40.6% of screen width)
+const SHELF_START_TO_WIDTH_RATIO = 0.16;       // Starting position of first shelf from top (46.5% of screen width)
+const BOOK_SHELF_HEIGHT_IN_CM = 40;             // Physical height reference for book dimensions
 
-interface BookPosition {
+// Book item component
+interface BookItemProps {
   book: Book;
-  x: number;
-  y: number;
-}
-
-// Animated book component that scales when selected
-interface AnimatedBookProps {
-  position: BookPosition;
-  index: number;
+  bookWidth: number;
+  bookHeight: number;
   isSelected: boolean;
   onPress: () => void;
 }
 
-const AnimatedBook = memo(({ position, index, isSelected, onPress }: AnimatedBookProps) => {
-  const scaleAnim = useRef(new Animated.Value(isSelected ? 1.05 : 1.0)).current;
-  const prevIsSelected = useRef(isSelected);
-
-  useEffect(() => {
-    // Only animate if selection state actually changed
-    if (prevIsSelected.current !== isSelected) {
-      prevIsSelected.current = isSelected;
-      Animated.spring(scaleAnim, {
-        toValue: isSelected ? 1.05 : 1.0,
-        useNativeDriver: true,
-        tension: 400,
-        friction: 15,
-      }).start();
-    }
-  }, [isSelected, scaleAnim]);
-
+const BookItem = memo(({ book, bookWidth, bookHeight, isSelected, onPress }: BookItemProps) => {
   return (
-    <Animated.View
-      style={[
-        styles.bookContainer,
-        {
-          position: 'absolute',
-          left: position.x,
-          top: position.y,
-          transform: [{ scale: scaleAnim }],
-        },
-      ]}
-    >
+    <View style={[styles.bookWrapper, { width: bookWidth, height: bookHeight }]}>
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={onPress}
-        style={styles.bookTouchable}
+        style={[
+          styles.bookTouchable,
+          isSelected && styles.selectedBook,
+        ]}
       >
-        <BookSpine book={position.book} />
+        <BookSpine book={book} />
       </TouchableOpacity>
-    </Animated.View>
+    </View>
   );
 }, (prevProps, nextProps) => {
-  // Custom comparison for memo - only re-render if these props change
   return (
-    prevProps.position.book.id === nextProps.position.book.id &&
-    prevProps.isSelected === nextProps.isSelected
+    prevProps.book.id === nextProps.book.id &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.bookWidth === nextProps.bookWidth &&
+    prevProps.bookHeight === nextProps.bookHeight
   );
 });
 
 interface BookshelfOverlayProps {
   books: Book[];
-  patternHeights: number[]; // Heights of each image in the pattern
-  totalContentHeight: number; // Total height of all content
-  topOffset: number; // Top padding offset
-  loadingBookCount?: number; // Number of books currently loading (to show skeletons)
+  patternHeights: number[];
+  totalContentHeight: number;
+  topOffset: number;
+  loadingBookCount?: number;
   onBookPress?: (book: Book, index: number) => void;
   selectedBookId?: string | null;
+  onBooksReorder?: (reorderedBooks: Book[]) => void;
+  // Shelf positioning controls (as % of screen width)
+  shelfStartOffset?: number; // % from top where first shelf starts (default: 0.465 = 46.5%)
+  shelfSeparation?: number;  // % distance between shelves (default: 0.406 = 40.6%)
+}
+
+interface BookWithDimensions extends Book {
+  bookWidth: number;
+  bookHeight: number;
 }
 
 export function BookshelfOverlay({ 
@@ -90,228 +75,127 @@ export function BookshelfOverlay({
   loadingBookCount = 0,
   onBookPress,
   selectedBookId,
+  onBooksReorder,
+  shelfStartOffset = SHELF_START_TO_WIDTH_RATIO,
+  shelfSeparation = SHELF_SEPARATION_TO_WIDTH_RATIO,
 }: BookshelfOverlayProps) {
-  // Memoize expensive calculations - only recalculate when books change
-  const { positions: bookPositions, shelfPositions } = useMemo<{ positions: BookPosition[]; shelfPositions: number[] }>(() => {
-    const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
+  const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
+  
+  // Use the configurable shelf positioning
+  const firstShelfY = shelfStartOffset * SCREEN_WIDTH;
+  const shelfSpacing = shelfSeparation * SCREEN_WIDTH;
+
+  // Calculate book dimensions
+  const booksWithDimensions = useMemo<BookWithDimensions[]>(() => {
+    return books.map((book) => {
+      const bookWidthPx = (book.thickness / BOOK_SHELF_HEIGHT_IN_CM) * ShelfHeight;
+      const actualBookHeight = (ShelfHeight * book.height / BOOK_SHELF_HEIGHT_IN_CM);
+      return {
+        ...book,
+        bookWidth: bookWidthPx,
+        bookHeight: actualBookHeight,
+      };
+    });
+  }, [books, ShelfHeight]);
+
+  // Handle drag end to update book order
+  const handleDragEnd = useCallback(({ order }: any) => {
+    if (onBooksReorder) {
+      const reordered = order(booksWithDimensions);
+      // Remove the temporary dimension properties before calling the callback
+      const booksOnly = reordered.map(({ bookWidth, bookHeight, ...book }: BookWithDimensions) => book);
+      onBooksReorder(booksOnly as Book[]);
+    }
+  }, [booksWithDimensions, onBooksReorder]);
+
+  // Calculate total height needed
+  const totalHeight = useMemo(() => {
+    if (booksWithDimensions.length === 0) return 0;
+
+    // Estimate number of shelves needed
+    let currentX = 0;
+    let shelvesNeeded = 1;
+
+    for (const book of booksWithDimensions) {
+      if (currentX + book.bookWidth > CONTAINER_WIDTH) {
+        shelvesNeeded++;
+        currentX = 0;
+      }
+      currentX += book.bookWidth + 2;
+    }
+
+    const lastShelfY = firstShelfY + ((shelvesNeeded - 1) * shelfSpacing);
     
-    // Calculate how many shelves we need based on book count
-    const estimateRequiredShelves = (): number => {
-      let currentX = 0;
-      let shelvesNeeded = 1;
+    return lastShelfY + (ShelfHeight * 1.5);
+  }, [booksWithDimensions, ShelfHeight, firstShelfY, shelfSpacing]);
 
-      for (const book of books) {
-        const bookWidthPx = (book.thickness / BOOK_SHELF_HEIGHT_IN_CM) * ShelfHeight;
-
-        // If book would overflow the container, wrap to next shelf
-        if (currentX + bookWidthPx > CONTAINER_WIDTH) {
-          shelvesNeeded++;
-          currentX = 0;
-        }
-        currentX += bookWidthPx + 2;
-      }
-
-      return shelvesNeeded;
-    };
-
-    // Calculate all shelf positions - simplified and uniform
-    const calculateShelfPositions = (): number[] => {
-      const shelfPositions: number[] = [];
-      const shelfSpacing = SHELF_SEPARATION_TO_WIDTH_RATIO * SCREEN_WIDTH;
-
-      // First shelf: positioned at FIRST_SHELF_START_PERCENT from top
-      const firstShelfY = SHELF_START_TO_WIDTH_RATIO * SCREEN_WIDTH;
-      shelfPositions.push(firstShelfY);
-
-      // All subsequent shelves: uniformly spaced
-      const requiredShelves = estimateRequiredShelves();
-      for (let i = 1; i < requiredShelves; i++) {
-        const shelfY = firstShelfY + (i * shelfSpacing);
-        shelfPositions.push(shelfY);
-      }
-
-      return shelfPositions;
-    };
-
-    // Calculate book positions with wrapping
-    const calculateBookPositions = (): { positions: BookPosition[]; shelfPositions: number[] } => {
-      const positions: BookPosition[] = [];
-      const calculatedShelfPositions = calculateShelfPositions();
-      let currentX = 0;
-      let currentShelfIndex = 0;
-
-      for (const book of books) {
-        // Calculate book width based on thickness
-        const bookWidthPx = (book.thickness / BOOK_SHELF_HEIGHT_IN_CM) * ShelfHeight;
-
-        // Check if book would overflow the container - if so, wrap to next shelf
-        if (currentX + bookWidthPx > CONTAINER_WIDTH) {
-          // Move to next shelf
-          currentShelfIndex++;
-          currentX = 0;
-        }
-
-        // Calculate the actual height of this specific book
-        const actualBookHeight = (ShelfHeight * book.height / BOOK_SHELF_HEIGHT_IN_CM);
-
-        // Get shelf Y position and calculate book top position
-        const shelfY = calculatedShelfPositions[currentShelfIndex];
-        const y = shelfY - actualBookHeight;
-
-        positions.push({
-          book,
-          x: currentX,
-          y,
-        });
-
-        currentX += bookWidthPx + 2; // Add small gap between books
-      }
-
-      return { positions, shelfPositions: calculatedShelfPositions };
-    };
-
-    return calculateBookPositions();
-  }, [books]);
-
-  // Memoize loading skeleton positions
-  const loadingSkeletonPositions = useMemo(() => {
+  // Create loading skeleton items with dimensions
+  const skeletonItems = useMemo(() => {
     if (loadingBookCount === 0) return [];
-    
-    const skeletonPositions: BookPosition[] = [];
-    const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
-    
-    // Default skeleton dimensions
+
     const defaultThickness = 2.5;
     const defaultHeight = 20;
     const skeletonWidthPx = (defaultThickness / BOOK_SHELF_HEIGHT_IN_CM) * ShelfHeight;
     const skeletonHeight = (ShelfHeight * defaultHeight / BOOK_SHELF_HEIGHT_IN_CM);
-    
-    // Start from the last book position, or start of first shelf if no books
-    let currentX = 0;
-    let currentShelfIndex = 0;
-    
-    if (bookPositions.length > 0) {
-      const lastPosition = bookPositions[bookPositions.length - 1];
-      const lastBookWidthPx = (lastPosition.book.thickness / BOOK_SHELF_HEIGHT_IN_CM) * ShelfHeight;
-      currentX = lastPosition.x + lastBookWidthPx + 2;
-      
-      // Find which shelf this book is on by finding the closest shelf below the book
-      // Books are positioned above the shelf, so we look for the shelf that's just below the book's bottom
-      const lastBookHeight = (ShelfHeight * lastPosition.book.height / BOOK_SHELF_HEIGHT_IN_CM);
-      const lastBookBottom = lastPosition.y + lastBookHeight;
-      
-      // Find the shelf index - the shelf Y should be just above or equal to the book's bottom
-      for (let i = shelfPositions.length - 1; i >= 0; i--) {
-        if (shelfPositions[i] <= lastBookBottom) {
-          currentShelfIndex = i;
-          break;
-        }
-      }
-      
-      // Check if we need to wrap to next shelf
-      if (currentX + skeletonWidthPx > CONTAINER_WIDTH) {
-        currentShelfIndex++;
-        currentX = 0;
-      }
-    }
-    
-    for (let i = 0; i < loadingBookCount; i++) {
-      // Check if skeleton would overflow the container
-      if (currentX + skeletonWidthPx > CONTAINER_WIDTH) {
-        currentShelfIndex++;
-        currentX = 0;
-      }
-      
-      const shelfY = shelfPositions[currentShelfIndex] || shelfPositions[0];
-      const y = shelfY - skeletonHeight;
-      
-      // Create a placeholder book for positioning
-      const placeholderBook: Book = {
-        id: `loading-${i}`,
-        googleId: '',
-        title: '',
-        author: '',
-        thickness: defaultThickness,
-        height: defaultHeight,
-        width: 12.7,
-        smallThumbnail: '',
-      };
-      
-      skeletonPositions.push({
-        book: placeholderBook,
-        x: currentX,
-        y,
-      });
-      
-      currentX += skeletonWidthPx + 2;
-    }
-    
-    return skeletonPositions;
-  }, [bookPositions, shelfPositions, loadingBookCount]);
 
-  // Memoize actual height calculation
-  const actualHeight = useMemo(() => {
-    const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
-    
-    // Check both regular books and loading skeletons
-    const allPositions = [...bookPositions, ...loadingSkeletonPositions];
-    
-    if (allPositions.length === 0) {
-      return 0;
-    }
-
-    // Find the bottom-most item
-    const lastItem = allPositions[allPositions.length - 1];
-    const actualItemHeight = (ShelfHeight * lastItem.book.height / BOOK_SHELF_HEIGHT_IN_CM);
-    const bottomY = lastItem.y + actualItemHeight;
-
-    // Add some padding at the bottom
-    const minHeight = bottomY + (ShelfHeight * 0.5);
-
-    // Return the greater of calculated height or totalContentHeight
-    return Math.max(minHeight, 0);
-  }, [bookPositions, loadingSkeletonPositions]);
+    return Array.from({ length: loadingBookCount }, (_, i) => ({
+      id: `skeleton-${i}`,
+      width: skeletonWidthPx,
+      height: skeletonHeight,
+      thickness: defaultThickness,
+      bookHeight: defaultHeight,
+    }));
+  }, [loadingBookCount, ShelfHeight]);
 
   return (
-    <>
-      <View
-        style={[
-          styles.container,
-          {
-            height: actualHeight,
-          }
-        ]}
-        pointerEvents="box-none"
+    <View
+      style={[
+        styles.container,
+        {
+          height: totalHeight,
+        }
+      ]}
+      pointerEvents="box-none"
+    >
+      <Sortable.Flex
+        flexDirection="row"
+        flexWrap="wrap"
+        alignItems="flex-end"
+        alignContent="flex-start"
+        width={CONTAINER_WIDTH}
+        gap={2}
+        paddingTop={firstShelfY}
+        rowGap={shelfSpacing - ShelfHeight}
+        onDragEnd={handleDragEnd}
       >
-        {bookPositions.map((position: BookPosition, index: number) => (
-          <AnimatedBook
-            key={position.book.id}
-            position={position}
-            index={index}
-            isSelected={selectedBookId === position.book.id}
-            onPress={() => onBookPress?.(position.book, index)}
+        {booksWithDimensions.map((book, index) => (
+          <BookItem
+            key={book.id}
+            book={book}
+            bookWidth={book.bookWidth}
+            bookHeight={book.bookHeight}
+            isSelected={selectedBookId === book.id}
+            onPress={() => onBookPress?.(book, index)}
           />
         ))}
-        {loadingSkeletonPositions.map((position, index) => (
+        {/* Render loading skeletons inline with the books */}
+        {skeletonItems.map((skeleton) => (
           <View
-            key={`loading-skeleton-${index}`}
+            key={skeleton.id}
             style={[
-              styles.bookContainer,
-              {
-                position: 'absolute',
-                left: position.x,
-                top: position.y,
-              },
+              styles.skeletonWrapper,
+              { width: skeleton.width, height: skeleton.height }
             ]}
+            pointerEvents="none"
           >
             <BookSkeleton 
-              thickness={position.book.thickness}
-              height={position.book.height}
+              thickness={skeleton.thickness}
+              height={skeleton.bookHeight}
             />
           </View>
         ))}
-      </View>
-    </>
+      </Sortable.Flex>
+    </View>
   );
 }
 
@@ -322,11 +206,21 @@ const styles = StyleSheet.create({
     left: 25,
     right: 25,
   },
-  bookContainer: {
-    // Individual book positioning handled via inline styles
+  sortableContainer: {
+    width: CONTAINER_WIDTH,
+  },
+  bookWrapper: {
+    // Width and height set dynamically based on book dimensions
   },
   bookTouchable: {
     width: '100%',
     height: '100%',
+  },
+  selectedBook: {
+    transform: [{ scale: 1.05 }],
+  },
+  skeletonWrapper: {
+    // Width and height set dynamically based on skeleton dimensions
+    // pointerEvents: none prevents interaction
   },
 });

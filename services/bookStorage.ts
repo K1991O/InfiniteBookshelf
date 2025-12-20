@@ -64,4 +64,13 @@ export async function clearBooks(): Promise<void> {
   }
 }
 
+export async function saveBooks(books: Book[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(books));
+  } catch (error) {
+    console.error('Error saving books:', error);
+    throw error;
+  }
+}
+
 
