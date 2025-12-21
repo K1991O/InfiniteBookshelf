@@ -28,6 +28,7 @@ interface BookDetailSheetProps {
   onBookChange: (index: number) => void;
   onBookDeleted?: () => void;
   onBookUpdated?: () => void;
+  onScrollProgress?: (scrollOffset: number) => void;
 }
 
 export function BookDetailSheet({
@@ -38,6 +39,7 @@ export function BookDetailSheet({
   onBookChange,
   onBookDeleted,
   onBookUpdated,
+  onScrollProgress,
 }: BookDetailSheetProps) {
   const scrollViewRef = useRef<ScrollView>(null);
   const isInitialScrollDone = useRef(false);
@@ -79,9 +81,15 @@ export function BookDetailSheet({
 
   // Handle real-time scroll updates with threshold to prevent jank
   const handleScroll = (event: any) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    
+    // Always pass scroll progress for smooth scaling animation
+    if (onScrollProgress) {
+      onScrollProgress(offsetX);
+    }
+    
     if (!isUserScrolling.current) return;
     
-    const offsetX = event.nativeEvent.contentOffset.x;
     // Calculate which page we're closest to based on scroll position
     const exactIndex = offsetX / SCREEN_WIDTH;
     const roundedIndex = Math.round(exactIndex);

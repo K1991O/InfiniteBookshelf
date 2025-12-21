@@ -5,7 +5,7 @@
  */
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { StatusBar, View, Platform, Animated } from 'react-native';
+import { StatusBar, View, Platform, Animated, Dimensions } from 'react-native';
 import {
   SafeAreaProvider,
   SafeAreaView,
@@ -28,6 +28,7 @@ function App() {
   const [books, setBooks] = useState<Book[]>([]);
   const [isDetailSheetVisible, setIsDetailSheetVisible] = useState(false);
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
   const scrollY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
   const scrollDirection = useRef(new Animated.Value(1)).current; // 1 = visible, 0 = hidden
@@ -60,8 +61,14 @@ function App() {
 
   const handleBookPress = useCallback((book: Book, index: number) => {
     setSelectedBookId(book.id);
+    // Initialize scroll progress to the selected book's position
+    const bookIndex = books.findIndex(b => b.id === book.id);
+    if (bookIndex >= 0) {
+      const { width: SCREEN_WIDTH } = Dimensions.get('window');
+      setScrollProgress(bookIndex * SCREEN_WIDTH);
+    }
     setIsDetailSheetVisible(true);
-  }, []);
+  }, [books]);
 
   const handleBookChange = useCallback((index: number) => {
     if (index >= 0 && index < books.length) {
@@ -72,6 +79,7 @@ function App() {
   const handleDetailSheetClose = useCallback(() => {
     setIsDetailSheetVisible(false);
     setSelectedBookId(null);
+    setScrollProgress(0);
   }, []);
 
   const handleBookDeleted = useCallback(() => {
@@ -86,6 +94,10 @@ function App() {
   const handleBookUpdated = useCallback(() => {
     // Trigger refresh to reload books and update UI
     setRefreshTrigger(prev => prev + 1);
+  }, []);
+
+  const handleScrollProgress = useCallback((offset: number) => {
+    setScrollProgress(offset);
   }, []);
 
 
@@ -176,6 +188,7 @@ function App() {
             selectedBookId={selectedBookId}
             books={books}
             onBooksReorder={handleBooksReorder}
+            scrollProgress={isDetailSheetVisible ? scrollProgress : undefined}
           />
           {/* Static white background for status bar area */}
           <SafeAreaView style={styles.statusBarArea} edges={['top']} pointerEvents="none" />
@@ -241,6 +254,7 @@ function App() {
             onBookChange={handleBookChange}
             onBookDeleted={handleBookDeleted}
             onBookUpdated={handleBookUpdated}
+            onScrollProgress={handleScrollProgress}
           />
         </View>
       </SafeAreaProvider>

@@ -1,5 +1,5 @@
-import React, { useMemo, memo, useCallback } from 'react';
-import { View, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import React, { useMemo, memo, useCallback, useEffect, useRef } from 'react';
+import { View, StyleSheet, Dimensions, TouchableOpacity, Animated } from 'react-native';
 import Sortable from 'react-native-sortables';
 import { Book } from '../types/Book';
 import { BookSpine } from './BookSpine';
@@ -37,14 +37,24 @@ interface BookItemProps {
   isSelected: boolean;
   onPress: () => void;
   bookGap: number;
+  scale: number;
 }
 
-const BookItem = memo(({ book, bookWidth, bookHeight, isSelected, onPress, bookGap }: BookItemProps) => {
+const BookItem = memo(({ book, bookWidth, bookHeight, isSelected, onPress, bookGap, scale }: BookItemProps) => {
+  const animatedScale = useRef(new Animated.Value(1.0)).current;
+  
+  useEffect(() => {
+    Animated.spring(animatedScale, {
+      toValue: scale,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 7,
+    }).start();
+  }, [scale, animatedScale]);
+
   return (
     <View style={[styles.bookWrapper, { width: bookWidth, marginRight: bookGap }]}>
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={onPress}
+      <Animated.View
         style={[
           styles.bookTouchable,
           {
@@ -52,12 +62,21 @@ const BookItem = memo(({ book, bookWidth, bookHeight, isSelected, onPress, bookG
             bottom: 0,
             height: bookHeight,
             width: bookWidth,
+            transform: [{ scale: animatedScale }],
           },
-          isSelected && styles.selectedBook,
         ]}
       >
-        <BookSpine book={book} width={bookWidth} height={bookHeight} />
-      </TouchableOpacity>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={onPress}
+          style={{
+            height: bookHeight,
+            width: bookWidth,
+          }}
+        >
+          <BookSpine book={book} width={bookWidth} height={bookHeight} />
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 }, (prevProps, nextProps) => {
@@ -66,7 +85,8 @@ const BookItem = memo(({ book, bookWidth, bookHeight, isSelected, onPress, bookG
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.bookWidth === nextProps.bookWidth &&
     prevProps.bookHeight === nextProps.bookHeight &&
-    prevProps.bookGap === nextProps.bookGap
+    prevProps.bookGap === nextProps.bookGap &&
+    Math.abs(prevProps.scale - nextProps.scale) < 0.001 // Only re-render if scale changes significantly
   );
 });
 
@@ -86,6 +106,8 @@ interface BookshelfOverlayProps {
   bookGap?: number; // Gap between books in pixels (0 = touching, -1 = merged, 2 = 2px gap)
   // Debug visualization
   showDebugLayers?: boolean; // Show opaque layers to visualize ratios
+  // Scroll progress for smooth scaling
+  scrollProgress?: number | undefined; // Scroll offset from BookDetailSheet (undefined when sheet is closed)
 }
 
 interface BookWithDimensions extends Book {
@@ -103,6 +125,7 @@ export function BookshelfOverlay({
   shelfSeparation = SHELF_SPACING_RATIO,
   bookGap = DEFAULT_BOOK_GAP,
   showDebugLayers = false,
+  scrollProgress,
 }: BookshelfOverlayProps) {
   // Calculate shelf dimensions
   const shelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_RATIO;
@@ -194,6 +217,39 @@ export function BookshelfOverlay({
     }));
   }, [loadingBookCount, shelfHeight]);
 
+  // Calculate scale for each book based on scroll progress
+  const bookScales = useMemo(() => {
+    if (books.length === 0) return [];
+    
+    // If scrollProgress is undefined, detail sheet is closed - use selectedBookId
+    if (scrollProgress === undefined) {
+      if (selectedBookId) {
+        // Detail sheet closed: scale up the selected book
+        return books.map((book) => {
+          return selectedBookId === book.id ? 1.05 : 1.0;
+        });
+      }
+      // No selection: all books at normal scale
+      return books.map(() => 1.0);
+    }
+    
+    // Detail sheet open: calculate scale based on scroll position
+    const currentIndex = scrollProgress / SCREEN_WIDTH;
+    
+    return books.map((_, index) => {
+      // Distance from current scroll position to this book's position
+      const distance = Math.abs(currentIndex - index);
+      
+      // Scale from 1.0 (far) to 1.05 (selected)
+      // Use a smooth curve: scale down quickly as distance increases
+      const maxDistance = 0.5; // Distance at which scale reaches 1.0
+      const scaleFactor = Math.max(0, 1 - (distance / maxDistance));
+      const scale = 1.0 + (0.05 * scaleFactor);
+      
+      return scale;
+    });
+  }, [scrollProgress, books.length, selectedBookId]);
+
   return (
     <View
       style={[
@@ -262,6 +318,7 @@ export function BookshelfOverlay({
         {booksWithDimensions.map((book) => {
           // Find the index by book ID to ensure correct index even after reordering
           const index = books.findIndex(b => b.id === book.id);
+          const scale = index >= 0 && index < bookScales.length ? bookScales[index] : 1.0;
           return (
             <BookItem
               key={book.id}
@@ -271,6 +328,7 @@ export function BookshelfOverlay({
               isSelected={selectedBookId === book.id}
               onPress={() => onBookPress?.(book, index >= 0 ? index : 0)}
               bookGap={bookGap}
+              scale={scale}
             />
           );
         })}

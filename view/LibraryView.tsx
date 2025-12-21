@@ -23,6 +23,7 @@ interface LibraryViewProps {
   selectedBookId?: string | null;
   books: Book[];
   onBooksReorder: (books: Book[]) => void;
+  scrollProgress?: number | undefined; // Scroll offset from BookDetailSheet for smooth scaling (undefined when sheet is closed)
 }
 
 export function LibraryView({ 
@@ -33,6 +34,7 @@ export function LibraryView({
   selectedBookId,
   books,
   onBooksReorder,
+  scrollProgress,
 }: LibraryViewProps) {
   const insets = useSafeAreaInsets();
   
@@ -156,6 +158,7 @@ export function LibraryView({
             onBookPress={onBookPress}
             selectedBookId={selectedBookId}
             onBooksReorder={onBooksReorder}
+            scrollProgress={scrollProgress}
           />
         )}
       </View>
