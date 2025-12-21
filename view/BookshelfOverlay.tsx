@@ -8,15 +8,26 @@ import { BookSkeleton } from './BookSkeleton';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Layout constants
-const CONTAINER_PADDING = 25;
-const CONTAINER_WIDTH = SCREEN_WIDTH - (CONTAINER_PADDING * 2);
+const PADDING = 34;
+const CONTAINER_WIDTH = SCREEN_WIDTH - (PADDING * 2);
 
-// Shelf positioning constants (as ratios of screen width)
-// You can override these by passing shelfStartOffset and shelfSeparation props
-const SHELF_HEIGHT_TO_WIDTH_RATIO = 0.5;        // Height of the shelf area
-const SHELF_SEPARATION_TO_WIDTH_RATIO = 0.406;  // Distance between shelves (40.6% of screen width)
-const SHELF_START_TO_WIDTH_RATIO = 0.16;       // Starting position of first shelf from top (46.5% of screen width)
-const BOOK_SHELF_HEIGHT_IN_CM = 40;             // Physical height reference for book dimensions
+// Shelf layout (as ratios of screen width)
+// //THICK
+// const SHELF_HEIGHT_RATIO = 0.37;        // Shelf height as % of screen width (limits book height)
+// const SHELF_SPACING_RATIO = 0.406;     // Gap between shelves
+// const SHELF_START_RATIO = 0.46;       // First shelf position from top
+// const DEFAULT_BOOK_GAP = 2;            // Default gap between books in pixels
+
+//THIN
+const SHELF_HEIGHT_RATIO = 0.62;        // Shelf height as % of screen width (limits book height)
+const SHELF_SPACING_RATIO = 0.69;     // Gap between shelves
+const SHELF_START_RATIO = 0.76;       // First shelf position from top
+const DEFAULT_BOOK_GAP = 2;            // Default gap between books in pixels
+
+// Shelf scale in cm - controls book size
+// Higher values = smaller books (same pixel height represents more cm)
+// Lower values = larger books (same pixel height represents fewer cm)
+const SHELF_HEIGHT_CM = 30;  // Shelf height in cm (affects book scale/aspect ratio)
 
 // Book item component
 interface BookItemProps {
@@ -25,20 +36,27 @@ interface BookItemProps {
   bookHeight: number;
   isSelected: boolean;
   onPress: () => void;
+  bookGap: number;
 }
 
-const BookItem = memo(({ book, bookWidth, bookHeight, isSelected, onPress }: BookItemProps) => {
+const BookItem = memo(({ book, bookWidth, bookHeight, isSelected, onPress, bookGap }: BookItemProps) => {
   return (
-    <View style={[styles.bookWrapper, { width: bookWidth, height: bookHeight }]}>
+    <View style={[styles.bookWrapper, { width: bookWidth, marginRight: bookGap }]}>
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={onPress}
         style={[
           styles.bookTouchable,
+          {
+            position: 'absolute',
+            bottom: 0,
+            height: bookHeight,
+            width: bookWidth,
+          },
           isSelected && styles.selectedBook,
         ]}
       >
-        <BookSpine book={book} />
+        <BookSpine book={book} width={bookWidth} height={bookHeight} />
       </TouchableOpacity>
     </View>
   );
@@ -47,7 +65,8 @@ const BookItem = memo(({ book, bookWidth, bookHeight, isSelected, onPress }: Boo
     prevProps.book.id === nextProps.book.id &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.bookWidth === nextProps.bookWidth &&
-    prevProps.bookHeight === nextProps.bookHeight
+    prevProps.bookHeight === nextProps.bookHeight &&
+    prevProps.bookGap === nextProps.bookGap
   );
 });
 
@@ -61,8 +80,12 @@ interface BookshelfOverlayProps {
   selectedBookId?: string | null;
   onBooksReorder?: (reorderedBooks: Book[]) => void;
   // Shelf positioning controls (as % of screen width)
-  shelfStartOffset?: number; // % from top where first shelf starts (default: 0.465 = 46.5%)
-  shelfSeparation?: number;  // % distance between shelves (default: 0.406 = 40.6%)
+  shelfStartOffset?: number; // % from top where first shelf starts
+  shelfSeparation?: number;  // % distance between shelves
+  // Book spacing
+  bookGap?: number; // Gap between books in pixels (0 = touching, -1 = merged, 2 = 2px gap)
+  // Debug visualization
+  showDebugLayers?: boolean; // Show opaque layers to visualize ratios
 }
 
 interface BookWithDimensions extends Book {
@@ -70,33 +93,47 @@ interface BookWithDimensions extends Book {
   bookHeight: number;
 }
 
-export function BookshelfOverlay({ 
-  books, 
+export function BookshelfOverlay({
+  books,
   loadingBookCount = 0,
   onBookPress,
   selectedBookId,
   onBooksReorder,
-  shelfStartOffset = SHELF_START_TO_WIDTH_RATIO,
-  shelfSeparation = SHELF_SEPARATION_TO_WIDTH_RATIO,
+  shelfStartOffset = SHELF_START_RATIO,
+  shelfSeparation = SHELF_SPACING_RATIO,
+  bookGap = DEFAULT_BOOK_GAP,
+  showDebugLayers = false,
 }: BookshelfOverlayProps) {
-  const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
-  
-  // Use the configurable shelf positioning
+  // Calculate shelf dimensions
+  const shelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_RATIO;
   const firstShelfY = shelfStartOffset * SCREEN_WIDTH;
   const shelfSpacing = shelfSeparation * SCREEN_WIDTH;
 
   // Calculate book dimensions
+  // Books are scaled to fit within shelf height while maintaining aspect ratio
   const booksWithDimensions = useMemo<BookWithDimensions[]>(() => {
     return books.map((book) => {
-      const bookWidthPx = (book.thickness / BOOK_SHELF_HEIGHT_IN_CM) * ShelfHeight;
-      const actualBookHeight = (ShelfHeight * book.height / BOOK_SHELF_HEIGHT_IN_CM);
+      // Calculate pixels per cm: shelfHeight pixels = SHELF_HEIGHT_CM cm
+      const pixelsPerCm = shelfHeight / SHELF_HEIGHT_CM;
+      
+      // Calculate book dimensions in pixels
+      let bookHeightPx = book.height * pixelsPerCm;
+      let bookWidthPx = book.thickness * pixelsPerCm;
+      
+      // If book exceeds shelf height, scale down proportionally while maintaining aspect ratio
+      if (bookHeightPx > shelfHeight) {
+        const scaleFactor = shelfHeight / bookHeightPx;
+        bookHeightPx = shelfHeight; // Clamp to shelf height
+        bookWidthPx = bookWidthPx * scaleFactor; // Scale width proportionally
+      }
+      
       return {
         ...book,
         bookWidth: bookWidthPx,
-        bookHeight: actualBookHeight,
+        bookHeight: bookHeightPx,
       };
     });
-  }, [books, ShelfHeight]);
+  }, [books, shelfHeight]);
 
   // Handle drag end to update book order
   const handleDragEnd = useCallback(({ order }: any) => {
@@ -121,13 +158,13 @@ export function BookshelfOverlay({
         shelvesNeeded++;
         currentX = 0;
       }
-      currentX += book.bookWidth + 2;
+      currentX += book.bookWidth + bookGap;
     }
 
     const lastShelfY = firstShelfY + ((shelvesNeeded - 1) * shelfSpacing);
-    
-    return lastShelfY + (ShelfHeight * 1.5);
-  }, [booksWithDimensions, ShelfHeight, firstShelfY, shelfSpacing]);
+
+    return lastShelfY + (shelfHeight * 1.5);
+  }, [booksWithDimensions, shelfHeight, firstShelfY, shelfSpacing, bookGap]);
 
   // Create loading skeleton items with dimensions
   const skeletonItems = useMemo(() => {
@@ -135,17 +172,27 @@ export function BookshelfOverlay({
 
     const defaultThickness = 2.5;
     const defaultHeight = 20;
-    const skeletonWidthPx = (defaultThickness / BOOK_SHELF_HEIGHT_IN_CM) * ShelfHeight;
-    const skeletonHeight = (ShelfHeight * defaultHeight / BOOK_SHELF_HEIGHT_IN_CM);
+    
+    // Use same calculation as books to maintain consistency
+    const pixelsPerCm = shelfHeight / SHELF_HEIGHT_CM;
+    let skeletonHeight = defaultHeight * pixelsPerCm;
+    let skeletonWidth = defaultThickness * pixelsPerCm;
+    
+    // Scale down if exceeds shelf height
+    if (skeletonHeight > shelfHeight) {
+      const scaleFactor = shelfHeight / skeletonHeight;
+      skeletonHeight = shelfHeight;
+      skeletonWidth = skeletonWidth * scaleFactor;
+    }
 
     return Array.from({ length: loadingBookCount }, (_, i) => ({
       id: `skeleton-${i}`,
-      width: skeletonWidthPx,
+      width: skeletonWidth,
       height: skeletonHeight,
       thickness: defaultThickness,
       bookHeight: defaultHeight,
     }));
-  }, [loadingBookCount, ShelfHeight]);
+  }, [loadingBookCount, shelfHeight]);
 
   return (
     <View
@@ -157,15 +204,59 @@ export function BookshelfOverlay({
       ]}
       pointerEvents="box-none"
     >
+      {/* Debug visualization layers */}
+      {showDebugLayers && (
+        <>
+          {/* Shelf height indicator - starts at end of blue and goes up */}
+          <View
+            style={[
+              styles.debugLayer,
+              styles.debugShelfHeight,
+              {
+                top: firstShelfY - shelfHeight,
+                height: shelfHeight,
+                width: CONTAINER_WIDTH,
+              }
+            ]}
+            pointerEvents="none"
+          />
+          {/* Shelf spacing indicator (gap between shelves) - starts where blue ends */}
+          <View
+            style={[
+              styles.debugLayer,
+              styles.debugShelfSpacing,
+              {
+                top: firstShelfY,
+                height: shelfSpacing,
+                width: CONTAINER_WIDTH,
+              }
+            ]}
+            pointerEvents="none"
+          />
+          {/* First shelf start position indicator */}
+          <View
+            style={[
+              styles.debugLayer,
+              styles.debugShelfStart,
+              {
+                top: 0,
+                height: firstShelfY,
+                width: CONTAINER_WIDTH,
+              }
+            ]}
+            pointerEvents="none"
+          />
+        </>
+      )}
+      
       <Sortable.Flex
         flexDirection="row"
         flexWrap="wrap"
         alignItems="flex-end"
         alignContent="flex-start"
         width={CONTAINER_WIDTH}
-        gap={2}
         paddingTop={firstShelfY}
-        rowGap={shelfSpacing - ShelfHeight}
+        rowGap={shelfSpacing}
         onDragEnd={handleDragEnd}
       >
         {booksWithDimensions.map((book, index) => (
@@ -176,22 +267,33 @@ export function BookshelfOverlay({
             bookHeight={book.bookHeight}
             isSelected={selectedBookId === book.id}
             onPress={() => onBookPress?.(book, index)}
+            bookGap={bookGap}
           />
         ))}
+        {/* <View style={{ backgroundColor: 'red', width: 10, height: 100 }} />
+        <View style={{ backgroundColor: 'green', width: 10, height: 100 }} />         */}
         {/* Render loading skeletons inline with the books */}
         {skeletonItems.map((skeleton) => (
           <View
             key={skeleton.id}
             style={[
               styles.skeletonWrapper,
-              { width: skeleton.width, height: skeleton.height }
+              { width: skeleton.width, marginRight: bookGap }
             ]}
             pointerEvents="none"
           >
-            <BookSkeleton 
-              thickness={skeleton.thickness}
-              height={skeleton.bookHeight}
-            />
+            <View
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                height: skeleton.height,
+              }}
+            >
+              <BookSkeleton
+                thickness={skeleton.thickness}
+                height={skeleton.bookHeight}
+              />
+            </View>
           </View>
         ))}
       </Sortable.Flex>
@@ -203,24 +305,37 @@ const styles = StyleSheet.create({
   container: {
     position: 'absolute',
     top: 0,
-    left: 25,
-    right: 25,
-  },
-  sortableContainer: {
-    width: CONTAINER_WIDTH,
+    left: PADDING,
+    right: PADDING,
   },
   bookWrapper: {
-    // Width and height set dynamically based on book dimensions
+    height: 0, // Zero height so it doesn't affect vertical spacing
+    position: 'relative',
+    overflow: 'visible', // Allow content to extend beyond wrapper (books are absolutely positioned)
   },
   bookTouchable: {
-    width: '100%',
-    height: '100%',
+    // Width is set inline to match bookWidth exactly
   },
   selectedBook: {
     transform: [{ scale: 1.05 }],
   },
   skeletonWrapper: {
-    // Width and height set dynamically based on skeleton dimensions
-    // pointerEvents: none prevents interaction
+    height: 0, // Zero height so it doesn't affect vertical spacing
+    justifyContent: 'flex-end',
+    overflow: 'visible', // Allow content to extend beyond wrapper
+  },
+  // Debug visualization layers
+  debugLayer: {
+    position: 'absolute',
+    left: 0,
+  },
+  debugShelfHeight: {
+    backgroundColor: 'rgba(255, 0, 0, 0.2)', // Red: shelf height
+  },
+  debugShelfSpacing: {
+    backgroundColor: 'rgba(0, 255, 0, 0.2)', // Green: spacing between shelves
+  },
+  debugShelfStart: {
+    backgroundColor: 'rgba(0, 0, 255, 0.2)', // Blue: space before first shelf
   },
 });

@@ -37,13 +37,23 @@ export function LibraryView({
   const [loadingBooks, setLoadingBooks] = useState(true);
   
   // Pattern: one Library_4, three Library_2, one Library_2end
-  const imagePattern = [
+  const imagePatternThick = [
     require('../assets/library_4.jpg'),
     require('../assets/library_2.jpg'),
     require('../assets/library_2.jpg'),
     require('../assets/library_2.jpg'),
     require('../assets/library_2end.jpg'),
   ];
+
+  const imagePatternThin = [
+    require('../assets/library_4thin.jpg'),
+    require('../assets/library_2thin.jpg'),
+    require('../assets/library_2thin.jpg'),
+    require('../assets/library_2thin.jpg'),
+    require('../assets/library_2endThin.jpg'),
+  ];
+
+  const imagePattern = imagePatternThin;
 
   const [patternHeights, setPatternHeights] = useState<number[]>([700, 300, 300, 300, 300]);
   const [imageStyles, setImageStyles] = useState<any[]>([]);

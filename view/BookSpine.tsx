@@ -9,22 +9,34 @@ const SHELF_HEIGHT_TO_WIDTH_RATIO = 0.5;
 
 interface BookSpineProps {
   book: Book;
+  width?: number; // Optional: if provided, use this instead of calculating
+  height?: number; // Optional: if provided, use this instead of calculating
 }
 
-export const BookSpine = memo(({ book }: BookSpineProps) => {
+export const BookSpine = memo(({ book, width: providedWidth, height: providedHeight }: BookSpineProps) => {
   // Memoize calculations to avoid recalculating on every render
   const { bookWidthPx, actualBookHeight, fontSize, backgroundColor } = useMemo(() => {
-    // Calculate dimensions - must match BookshelfOverlay calculation
-    // Use SCREEN_WIDTH * ratio to match positioning logic
-    const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
+    // Use provided dimensions if available, otherwise calculate
+    let width: number;
+    let height: number;
     
-    // Calculate width based on the book's thickness relative to shelf height
-    // If shelf is 40cm, and book thickness is, say, 2.1cm, 
-    // then width = (2.1 / 40) * ShelfHeight
-    const width = (book.thickness / SHELF_HEIGHT_CM) * ShelfHeight;
-    
-    // Calculate actual book height
-    const height = (ShelfHeight * book.height / SHELF_HEIGHT_CM);
+    if (providedWidth !== undefined && providedHeight !== undefined) {
+      // Use provided dimensions from parent (BookshelfOverlay)
+      width = providedWidth;
+      height = providedHeight;
+    } else {
+      // Fallback: Calculate dimensions - must match BookshelfOverlay calculation
+      // Use SCREEN_WIDTH * ratio to match positioning logic
+      const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
+      
+      // Calculate width based on the book's thickness relative to shelf height
+      // If shelf is 40cm, and book thickness is, say, 2.1cm, 
+      // then width = (2.1 / 40) * ShelfHeight
+      width = (book.thickness / SHELF_HEIGHT_CM) * ShelfHeight;
+      
+      // Calculate actual book height
+      height = (ShelfHeight * book.height / SHELF_HEIGHT_CM);
+    }
     
     // Calculate dynamic font size based on book height AND title length
     // Start with a base size from book height
@@ -57,7 +69,7 @@ export const BookSpine = memo(({ book }: BookSpineProps) => {
       fontSize: size,
       backgroundColor: bgColor,
     };
-  }, [book.thickness, book.height, book.title.length, book.spineThumbnail]);
+  }, [book.thickness, book.height, book.title.length, book.spineThumbnail, providedWidth, providedHeight]);
 
   return (
     <View
@@ -101,7 +113,6 @@ export const BookSpine = memo(({ book }: BookSpineProps) => {
 
 const styles = StyleSheet.create({
   bookSpine: {
-    marginRight: 2,
     borderRadius: 2,
     justifyContent: 'center',
     alignItems: 'center',

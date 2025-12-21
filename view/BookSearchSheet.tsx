@@ -40,7 +40,8 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
   const [selectedBook, setSelectedBook] = useState<BookDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [addingBookId, setAddingBookId] = useState<string | null>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  // Use Animated.Value for keyboard height to avoid re-renders and ensure smooth performance
+  const keyboardAnim = useRef(new Animated.Value(0)).current;
   const [keyboardReady, setKeyboardReady] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -50,71 +51,73 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
   const isHandlingBookPress = useRef(false);
   const scannedISBNs = useRef<Set<string>>(new Set());
   const scanSuccessful = useRef(false);
-  
+
   const handleBarcodeScanned = async (isbn: string) => {
     // Prevent duplicate scans
     if (isScanning || scannedISBNs.current.has(isbn)) {
       return;
     }
-    
+
     scannedISBNs.current.add(isbn);
     setIsScanning(true);
-    
+
     // Provide satisfying pop haptic feedback when barcode is detected
     ReactNativeHapticFeedback.trigger('impactHeavy', {
       enableVibrateFallback: true,
       ignoreAndroidSystemSettings: false,
     });
-    
+
     // Mark as successful and close scanner
     scanSuccessful.current = true;
     setScannerVisible(false);
-    
-    // Notify parent that we're adding a book
+
+    // Pre-fill search with ISBN
+    setSearchQuery(isbn);
+    setLoading(true);
     if (onBookAdding) {
       onBookAdding();
     }
-    
+
     try {
       // Search for book by ISBN
       const results = await searchBooks(isbn);
-      
+
       if (results.length > 0) {
         // Get book details and add it
         const book = results[0];
         setLoadingDetails(true);
         const details = await getBookDetails(book.id);
         setLoadingDetails(false);
-        
+
         if (details) {
           // Convert to our Book type and save to storage
           const bookToSave = convertToBook(book, details);
-          
+
           // Simulate loading time for skeleton animation
           await new Promise<void>((resolve) => {
             setTimeout(() => {
               resolve();
             }, 1000);
           });
-          
+
           await saveBook(bookToSave);
-          
+
           // Provide success haptic feedback
           ReactNativeHapticFeedback.trigger('notificationSuccess', {
             enableVibrateFallback: true,
             ignoreAndroidSystemSettings: false,
           });
-          
+
           // Notify parent that a book was added
           if (onBookAdded) {
             onBookAdded();
           }
-          
+
           // Show success message
           if (Platform.OS === 'android') {
             ToastAndroid.show('Book added successfully!', ToastAndroid.SHORT);
           }
-          
+
           // Close both scanner and search sheet
           setScannerVisible(false);
           Keyboard.dismiss();
@@ -123,31 +126,48 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
           throw new Error('Book details not found');
         }
       } else {
-        throw new Error('Book not found');
+        // NO BOOKS FOUND logic
+        console.log('No books found for ISBN:', isbn);
+
+        // Populate the list with empty results to trigger "No books found" UI
+        setBooks([]);
+
+        // Provide feedback that scan worked but no results
+        ReactNativeHapticFeedback.trigger('notificationWarning', {
+          enableVibrateFallback: true,
+          ignoreAndroidSystemSettings: false,
+        });
+
+        // We explicitly DO NOT throw an error here. 
+        // We just let the UI show the search sheet with "No books found".
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error scanning barcode:', error);
-      
-      // Mark scan as unsuccessful
-      scanSuccessful.current = false;
-      
-      // Provide error haptic feedback
-      ReactNativeHapticFeedback.trigger('notificationError', {
-        enableVibrateFallback: true,
-        ignoreAndroidSystemSettings: false,
-      });
-      
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('Book not found. Please try again.', ToastAndroid.SHORT);
-      } else {
-        Alert.alert('Error', 'Book not found. Please try again.');
+
+      // Only show error alert for actual errors, not empty results
+      if (error.message !== 'Book not found') {
+        // Mark scan as unsuccessful
+        scanSuccessful.current = false;
+
+        // Provide error haptic feedback
+        ReactNativeHapticFeedback.trigger('notificationError', {
+          enableVibrateFallback: true,
+          ignoreAndroidSystemSettings: false,
+        });
+
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Error processing scan. Please try again.', ToastAndroid.SHORT);
+        } else {
+          Alert.alert('Error', 'Error processing scan. Please try again.');
+        }
       }
     } finally {
       setIsScanning(false);
       scannedISBNs.current.clear();
+      setLoading(false);
     }
   };
-  
+
   const handleCameraPress = () => {
     scanSuccessful.current = false;
     setScannerVisible(true);
@@ -155,7 +175,7 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
     // Dismiss keyboard to prevent it from showing behind camera
     Keyboard.dismiss();
   };
-  
+
   const handleScannerClose = () => {
     setScannerVisible(false);
   };
@@ -164,14 +184,14 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
     if (visible) {
       // Start sheet offscreen
       slideAnim.setValue(SCREEN_HEIGHT);
-      
+
       // Animate sheet in immediately (don't wait for keyboard on Android)
       Animated.timing(slideAnim, {
         toValue: 0,
         duration: 300,
-        useNativeDriver: false,
+        useNativeDriver: true,
       }).start();
-      
+
       // Force keyboard to show after sheet starts animating
       // Use InteractionManager on Android to ensure Modal is fully rendered
       if (Platform.OS === 'android') {
@@ -190,14 +210,14 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
       Keyboard.dismiss();
       setSearchQuery('');
       setBooks([]);
-      setKeyboardHeight(0);
+      keyboardAnim.setValue(0);
       setKeyboardReady(false);
       isHandlingBookPress.current = false;
       // Animate sheet out
       Animated.timing(slideAnim, {
         toValue: SCREEN_HEIGHT,
         duration: 300,
-        useNativeDriver: false,
+        useNativeDriver: true,
       }).start();
     }
   }, [visible]);
@@ -208,16 +228,23 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
       (e) => {
         const height = e.endCoordinates.height;
         const duration = Platform.OS === 'ios' ? e.duration : 250;
-        
-        setKeyboardHeight(height);
+        const easing = Platform.OS === 'ios' ? e.easing : undefined;
+
         setKeyboardReady(true);
-        
+
+        // Animate keyboard offset
+        Animated.timing(keyboardAnim, {
+          toValue: -height, // Negative because we want to move UP
+          duration: duration,
+          useNativeDriver: true, // Native driver for smooth performance
+        }).start();
+
         // On iOS, animate sheet with keyboard. On Android, sheet is already visible.
         if (visible && Platform.OS === 'ios') {
           Animated.timing(slideAnim, {
             toValue: 0,
             duration: duration,
-            useNativeDriver: false,
+            useNativeDriver: true,
           }).start();
         }
       }
@@ -227,16 +254,22 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
       (e) => {
         const duration = Platform.OS === 'ios' ? e.duration : 250;
-        
-        setKeyboardHeight(0);
+
         setKeyboardReady(false);
-        
+
+        // Animate keyboard offset back to 0
+        Animated.timing(keyboardAnim, {
+          toValue: 0,
+          duration: duration,
+          useNativeDriver: true,
+        }).start();
+
         if (Platform.OS === 'ios') {
           // On iOS, animate sheet out with keyboard
           Animated.timing(slideAnim, {
             toValue: SCREEN_HEIGHT,
             duration: duration,
-            useNativeDriver: false,
+            useNativeDriver: true,
           }).start(() => {
             if (!visible) {
               slideAnim.setValue(SCREEN_HEIGHT);
@@ -338,12 +371,12 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
     // Set flag to prevent keyboard dismiss from auto-closing sheet
     isHandlingBookPress.current = true;
     setAddingBookId(book.id);
-    
+
     // Notify parent that we're adding a book (to show skeleton)
     if (onBookAdding) {
       onBookAdding();
     }
-    
+
     try {
       setLoadingDetails(true);
       const details = await getBookDetails(book.id);
@@ -352,21 +385,21 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
       if (details) {
         // Convert to our Book type and save to storage
         const bookToSave = convertToBook(book, details);
-        
+
         // Simulate loading time for skeleton animation (at least 1 second)
         await new Promise<void>((resolve) => {
           setTimeout(() => {
             resolve();
           }, 1000);
         });
-        
+
         await saveBook(bookToSave);
-        
+
         // Notify parent that a book was added
         if (onBookAdded) {
           onBookAdded();
         }
-        
+
         // Close the sheet
         isHandlingBookPress.current = false;
         setAddingBookId(null);
@@ -395,7 +428,7 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
       setLoadingDetails(false);
       setAddingBookId(null);
       console.error('Error handling book press:', error);
-      
+
       if (Platform.OS === 'android') {
         ToastAndroid.show('Error loading book details', ToastAndroid.SHORT);
         setTimeout(() => {
@@ -445,105 +478,104 @@ export function BookSearchSheet({ visible, onClose, onBookAdded, onBookAdding }:
 
   return (
     <>
-    <Modal
-      visible={visible && !scannerVisible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-      statusBarTranslucent={Platform.OS === 'android'}
-    >
-      <View style={styles.overlay}>
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={() => {
-            // Dismiss keyboard and sheet together
-            Keyboard.dismiss();
-            onClose();
-          }}
-        />
-        <Animated.View
-          style={[
-            styles.sheet,
-            {
-              transform: [{ translateY: slideAnim }],
-              height: SCREEN_HEIGHT * 0.26, // 28% of screen height
-              bottom: Platform.OS === 'ios'
-                ? keyboardHeight
-                : 0, // On Android, system handles keyboard with adjustResize
-            },
-          ]}
-        >
-          <View style={styles.sheetContent}>
-            <TouchableOpacity
-              activeOpacity={1}
-              onPress={() => {
-                // Focus search when tapping on search container
-                searchInputRef.current?.focus();
-              }}
-            >
-              <View style={styles.searchContainer}>
-                <View style={styles.searchInputWrapper}>
-                  {loading || loadingDetails ? (
-                    <ActivityIndicator
-                      size="small"
-                      color="#564136"
-                      style={styles.searchIcon}
+      <Modal
+        visible={visible && !scannerVisible}
+        transparent
+        animationType="none"
+        onRequestClose={onClose}
+        statusBarTranslucent={Platform.OS === 'android'}
+      >
+        <View style={styles.overlay}>
+          <TouchableOpacity
+            style={styles.backdrop}
+            activeOpacity={1}
+            onPress={() => {
+              // Dismiss keyboard and sheet together
+              Keyboard.dismiss();
+              onClose();
+            }}
+          />
+          <Animated.View
+            style={[
+              styles.sheet,
+              {
+                transform: [
+                  { translateY: Animated.add(slideAnim, keyboardAnim) }
+                ],
+                height: SCREEN_HEIGHT * 0.26, // 28% of screen height
+              },
+            ]}
+          >
+            <View style={styles.sheetContent}>
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={() => {
+                  // Focus search when tapping on search container
+                  searchInputRef.current?.focus();
+                }}
+              >
+                <View style={styles.searchContainer}>
+                  <View style={styles.searchInputWrapper}>
+                    {loading || loadingDetails ? (
+                      <ActivityIndicator
+                        size="small"
+                        color="#564136"
+                        style={styles.searchIcon}
+                      />
+                    ) : (
+                      <Image
+                        source={require('../assets/search.png')}
+                        style={styles.searchIcon}
+                      />
+                    )}
+                    <TextInput
+                      ref={searchInputRef}
+                      style={styles.searchInput}
+                      placeholder="Search for books..."
+                      placeholderTextColor="#828282"
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      onSubmitEditing={handleSearch}
+                      returnKeyType="search"
+                      autoFocus={false}
+                      showSoftInputOnFocus={true}
                     />
-                  ) : (
-                    <Image
-                      source={require('../assets/search.png')}
-                      style={styles.searchIcon}
-                    />
-                  )}
-                  <TextInput
-                    ref={searchInputRef}
-                    style={styles.searchInput}
-                    placeholder="Search for books..."
-                    placeholderTextColor="#828282"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    onSubmitEditing={handleSearch}
-                    returnKeyType="search"
-                    autoFocus={false}
-                    showSoftInputOnFocus={true}
-                  />
-                  <TouchableOpacity
-                    style={styles.cameraButton}
-                    onPress={handleCameraPress}
-                    activeOpacity={0.7}
-                  >
-                    <Image source={require('../assets/camera.png')} style={styles.cameraIcon} />
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.cameraButton}
+                      onPress={handleCameraPress}
+                      activeOpacity={0.7}
+                    >
+                      <Image source={require('../assets/camera.png')} style={styles.cameraIcon} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            </TouchableOpacity>
+              </TouchableOpacity>
 
-            <FlatList
-              data={books}
-              renderItem={renderBookItem}
-              keyExtractor={(item) => item.id}
-              style={styles.bookList}
-              contentContainerStyle={styles.bookListContent}
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                !loading && searchQuery ? (
-                  <Text style={styles.emptyText}>No books found</Text>
-                ) : null
-              }
-            />
-          </View>
-        </Animated.View>
-      </View>
-    </Modal>
-      
-    {/* Barcode Scanner Component */}
-    <BarcodeScanner
-      visible={scannerVisible}
-      onClose={handleScannerClose}
-      onBarcodeScanned={handleBarcodeScanned}
-      isScanning={isScanning}
-    />
+              <FlatList
+                data={books}
+                renderItem={renderBookItem}
+                keyExtractor={(item) => item.id}
+                style={styles.bookList}
+                contentContainerStyle={styles.bookListContent}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={
+                  !loading && searchQuery ? (
+                    <Text style={styles.emptyText}>No books found</Text>
+                  ) : null
+                }
+              />
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* Barcode Scanner Component */}
+      <BarcodeScanner
+        visible={scannerVisible}
+        onClose={handleScannerClose}
+        onBarcodeScanned={handleBarcodeScanned}
+        isScanning={isScanning}
+      />
     </>
   );
 }
