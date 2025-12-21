@@ -20,6 +20,7 @@
     "react-native-haptic-feedback": "^2.3.3",
     "react-native-image-crop-picker": "^0.51.1",
     "react-native-image-picker": "^8.2.1",
+    "react-native-perspective-image-cropper": "^0.4.4",
     "react-native-reanimated": "^4.2.1",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-sortables": "^1.9.4",
