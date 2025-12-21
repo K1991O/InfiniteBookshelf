@@ -92,3 +92,4 @@ export async function cleanupOrphanedImages(activeImageUris: string[]): Promise<
     console.error('Error cleaning up orphaned images:', error);
   }
 }
+

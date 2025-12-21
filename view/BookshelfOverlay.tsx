@@ -259,17 +259,21 @@ export function BookshelfOverlay({
         rowGap={shelfSpacing}
         onDragEnd={handleDragEnd}
       >
-        {booksWithDimensions.map((book, index) => (
-          <BookItem
-            key={book.id}
-            book={book}
-            bookWidth={book.bookWidth}
-            bookHeight={book.bookHeight}
-            isSelected={selectedBookId === book.id}
-            onPress={() => onBookPress?.(book, index)}
-            bookGap={bookGap}
-          />
-        ))}
+        {booksWithDimensions.map((book) => {
+          // Find the index by book ID to ensure correct index even after reordering
+          const index = books.findIndex(b => b.id === book.id);
+          return (
+            <BookItem
+              key={book.id}
+              book={book}
+              bookWidth={book.bookWidth}
+              bookHeight={book.bookHeight}
+              isSelected={selectedBookId === book.id}
+              onPress={() => onBookPress?.(book, index >= 0 ? index : 0)}
+              bookGap={bookGap}
+            />
+          );
+        })}
         {/* <View style={{ backgroundColor: 'red', width: 10, height: 100 }} />
         <View style={{ backgroundColor: 'green', width: 10, height: 100 }} />         */}
         {/* Render loading skeletons inline with the books */}

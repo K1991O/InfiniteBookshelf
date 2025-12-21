@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Image, FlatList, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styles } from './styles/Main';
 import { BookshelfOverlay } from './BookshelfOverlay';
 import { Book } from '../types/Book';
-import { loadBooks, saveBooks } from '../services/bookStorage';
-import { BookSkeleton } from './BookSkeleton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -23,6 +21,8 @@ interface LibraryViewProps {
   loadingBookCount?: number; // Number of books currently loading
   onBookPress?: (book: Book, index: number) => void;
   selectedBookId?: string | null;
+  books: Book[];
+  onBooksReorder: (books: Book[]) => void;
 }
 
 export function LibraryView({ 
@@ -31,10 +31,10 @@ export function LibraryView({
   loadingBookCount = 0,
   onBookPress,
   selectedBookId,
+  books,
+  onBooksReorder,
 }: LibraryViewProps) {
   const insets = useSafeAreaInsets();
-  const [books, setBooks] = useState<Book[]>([]);
-  const [loadingBooks, setLoadingBooks] = useState(true);
   
   // Pattern: one Library_4, three Library_2, one Library_2end
   const imagePatternThick = [
@@ -57,34 +57,6 @@ export function LibraryView({
 
   const [patternHeights, setPatternHeights] = useState<number[]>([700, 300, 300, 300, 300]);
   const [imageStyles, setImageStyles] = useState<any[]>([]);
-
-  // Load books from storage
-  const loadBooksFromStorage = useCallback(async () => {
-    try {
-      setLoadingBooks(true);
-      const savedBooks = await loadBooks();
-      setBooks(savedBooks);
-    } catch (error) {
-      console.error('Error loading books:', error);
-    } finally {
-      setLoadingBooks(false);
-    }
-  }, []);
-
-  // Load books on mount and when refreshTrigger changes
-  useEffect(() => {
-    loadBooksFromStorage();
-  }, [loadBooksFromStorage, refreshTrigger]);
-
-  // Handle book reordering
-  const handleBooksReorder = useCallback(async (reorderedBooks: Book[]) => {
-    try {
-      await saveBooks(reorderedBooks);
-      setBooks(reorderedBooks);
-    } catch (error) {
-      console.error('Error saving reordered books:', error);
-    }
-  }, []);
 
   // Load image dimensions and calculate heights
   useEffect(() => {
@@ -183,7 +155,7 @@ export function LibraryView({
             loadingBookCount={loadingBookCount}
             onBookPress={onBookPress}
             selectedBookId={selectedBookId}
-            onBooksReorder={handleBooksReorder}
+            onBooksReorder={onBooksReorder}
           />
         )}
       </View>

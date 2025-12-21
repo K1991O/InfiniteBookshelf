@@ -19,7 +19,7 @@ import { FloatingActionButton } from './view/FloatingActionButton';
 import { BookSearchSheet } from './view/BookSearchSheet';
 import { BookDetailSheet } from './view/BookDetailSheet';
 import { Book } from './types/Book';
-import { loadBooks } from './services/bookStorage';
+import { loadBooks, saveBooks } from './services/bookStorage';
 
 function App() {
   const [isSearchSheetVisible, setIsSearchSheetVisible] = useState(false);
@@ -27,7 +27,7 @@ function App() {
   const [loadingBookCount, setLoadingBookCount] = useState(0);
   const [books, setBooks] = useState<Book[]>([]);
   const [isDetailSheetVisible, setIsDetailSheetVisible] = useState(false);
-  const [selectedBookIndex, setSelectedBookIndex] = useState<number>(-1);
+  const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
   const scrollDirection = useRef(new Animated.Value(1)).current; // 1 = visible, 0 = hidden
@@ -59,24 +59,24 @@ function App() {
   };
 
   const handleBookPress = useCallback((book: Book, index: number) => {
-    setSelectedBookIndex(index);
+    setSelectedBookId(book.id);
     setIsDetailSheetVisible(true);
   }, []);
 
   const handleBookChange = useCallback((index: number) => {
     if (index >= 0 && index < books.length) {
-      setSelectedBookIndex(index);
+      setSelectedBookId(books[index]?.id || null);
     }
-  }, [books.length]);
+  }, [books]);
 
   const handleDetailSheetClose = useCallback(() => {
     setIsDetailSheetVisible(false);
-    setSelectedBookIndex(-1);
+    setSelectedBookId(null);
   }, []);
 
   const handleBookDeleted = useCallback(() => {
     // Clear the selected book
-    setSelectedBookIndex(-1);
+    setSelectedBookId(null);
     setIsDetailSheetVisible(false);
     
     // Trigger refresh to reload books and recalculate positions
@@ -86,6 +86,17 @@ function App() {
   const handleBookUpdated = useCallback(() => {
     // Trigger refresh to reload books and update UI
     setRefreshTrigger(prev => prev + 1);
+  }, []);
+
+
+  const handleBooksReorder = useCallback(async (reorderedBooks: Book[]) => {
+    try {
+      await saveBooks(reorderedBooks);
+      setBooks(reorderedBooks);
+      // No need to update selectedBookId - it remains the same since we're tracking by ID
+    } catch (error) {
+      console.error('Error saving reordered books:', error);
+    }
   }, []);
 
   const handleScroll = Animated.event(
@@ -162,7 +173,9 @@ function App() {
             refreshTrigger={refreshTrigger}
             loadingBookCount={loadingBookCount}
             onBookPress={handleBookPress}
-            selectedBookId={selectedBookIndex >= 0 && selectedBookIndex < books.length ? books[selectedBookIndex]?.id : null}
+            selectedBookId={selectedBookId}
+            books={books}
+            onBooksReorder={handleBooksReorder}
           />
           {/* Static white background for status bar area */}
           <SafeAreaView style={styles.statusBarArea} edges={['top']} pointerEvents="none" />
@@ -223,7 +236,7 @@ function App() {
           <BookDetailSheet
             visible={isDetailSheetVisible}
             books={books}
-            currentBookIndex={selectedBookIndex}
+            currentBookIndex={selectedBookId ? books.findIndex(b => b.id === selectedBookId) : -1}
             onClose={handleDetailSheetClose}
             onBookChange={handleBookChange}
             onBookDeleted={handleBookDeleted}
