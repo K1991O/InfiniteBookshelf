@@ -163,6 +163,36 @@ export function BookDetailSheet({
       
       console.log('✅ Base64 image validated, length:', base64Image.length);
       
+      // Calculate cropped image dimensions from coordinates
+      let newThickness = currentBook.thickness;
+      if (coordinates && coordinates.topLeft && coordinates.topRight && coordinates.bottomLeft) {
+        // Calculate width and height of the cropped region
+        const croppedWidth = Math.sqrt(
+          Math.pow(coordinates.topRight.x - coordinates.topLeft.x, 2) +
+          Math.pow(coordinates.topRight.y - coordinates.topLeft.y, 2)
+        );
+        const croppedHeight = Math.sqrt(
+          Math.pow(coordinates.bottomLeft.x - coordinates.topLeft.x, 2) +
+          Math.pow(coordinates.bottomLeft.y - coordinates.topLeft.y, 2)
+        );
+        
+        // Calculate aspect ratio of the cropped image (width/height)
+        const aspectRatio = croppedWidth / croppedHeight;
+        
+        // Update thickness to match the aspect ratio
+        // thickness = aspectRatio * height (to maintain proper proportions)
+        newThickness = aspectRatio * currentBook.height;
+        
+        console.log('📐 Calculated new thickness:', {
+          croppedWidth,
+          croppedHeight,
+          aspectRatio,
+          oldThickness: currentBook.thickness,
+          newThickness,
+          bookHeight: currentBook.height,
+        });
+      }
+      
       // Create temporary file path
       const tempPath = `${RNFS.TemporaryDirectoryPath}/cropped_spine_${Date.now()}.jpg`;
       
@@ -184,15 +214,16 @@ export function BookDetailSheet({
         await deleteSpineImage(currentBook.spineThumbnail);
       }
       
-      // Update the book
+      // Update the book with new spine image and thickness
       const updatedBook: Book = {
         ...currentBook,
         spineThumbnail: savedImagePath,
+        thickness: newThickness,
       };
       
       await updateBook(updatedBook);
       
-      console.log('✅ Book updated successfully!');
+      console.log('✅ Book updated successfully with new thickness!');
       
       // Close cropper
       setCropperVisible(false);

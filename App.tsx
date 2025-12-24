@@ -19,7 +19,7 @@ import { FloatingActionButton } from './view/FloatingActionButton';
 import { BookSearchSheet } from './view/BookSearchSheet';
 import { BookDetailSheet } from './view/BookDetailSheet';
 import { Book } from './types/Book';
-import { loadBooks, saveBooks } from './services/bookStorage';
+import { loadBooks, saveBooks, updateBooksWithSpineImageDimensions } from './services/bookStorage';
 
 function App() {
   const [isSearchSheetVisible, setIsSearchSheetVisible] = useState(false);
@@ -38,6 +38,10 @@ function App() {
   // Load books from storage
   const loadBooksFromStorage = useCallback(async () => {
     try {
+      // First, update book thicknesses based on spine images (if needed)
+      await updateBooksWithSpineImageDimensions();
+      
+      // Then load the books
       const savedBooks = await loadBooks();
       setBooks(savedBooks);
     } catch (error) {
