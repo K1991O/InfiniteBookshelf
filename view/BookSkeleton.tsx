@@ -10,11 +10,15 @@ const SHELF_HEIGHT_TO_WIDTH_RATIO = 0.5;
 interface BookSkeletonProps {
   thickness?: number; // in cm, defaults to average book thickness
   height?: number; // in cm, defaults to average book height
+  width?: number; // in pixels, if provided use this
+  pixelHeight?: number; // in pixels, if provided use this (named differently to avoid conflict with cm height)
 }
 
 export function BookSkeleton({
-  thickness = 3, // Default average book thickness
-  height = 30, // Default average book height
+  thickness = 2, // Default average book thickness
+  height = 20, // Default average book height
+  width: providedWidth,
+  pixelHeight: providedHeight,
 }: BookSkeletonProps) {
   const strobeAnim = useRef(new Animated.Value(0)).current;
 
@@ -42,10 +46,9 @@ export function BookSkeleton({
     };
   }, [strobeAnim]);
 
-  // Calculate dimensions - must match BookshelfOverlay calculation
-  const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
-  const bookWidthPx = (thickness / SHELF_HEIGHT_CM) * ShelfHeight;
-  const actualBookHeight = (ShelfHeight * height) / SHELF_HEIGHT_CM;
+  // Use provided dimensions if available, otherwise calculate using fallback (though parent should always provide)
+  const bookWidthPx = providedWidth ?? (thickness / SHELF_HEIGHT_CM) * (SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO);
+  const actualBookHeight = providedHeight ?? (height * (SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO)) / SHELF_HEIGHT_CM;
 
   // Interpolate opacity for strobing effect
   const opacity = strobeAnim.interpolate({
@@ -69,8 +72,7 @@ export function BookSkeleton({
 
 const styles = StyleSheet.create({
   skeleton: {
-    marginRight: 2,
-    borderRadius: 4,
+    borderRadius: 2,
     backgroundColor: '#D9D9D9',
     borderColor: 'rgba(0, 0, 0, 0.2)',
     borderWidth: 1,

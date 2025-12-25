@@ -216,7 +216,7 @@ export function BookshelfOverlay({
     if (loadingBookCount === 0) return [];
 
     const defaultThickness = 3;
-    const defaultHeight = 30;
+    const defaultHeight = 20;
 
     // Use same calculation as books to maintain consistency
     const pixelsPerCm = shelfHeight / SHELF_HEIGHT_CM;
@@ -355,12 +355,11 @@ export function BookshelfOverlay({
         })}
         {/* <View style={{ backgroundColor: 'red', width: 10, height: 100 }} />
         <View style={{ backgroundColor: 'green', width: 10, height: 100 }} />         */}
-        {/* Render loading skeletons inline with the books */}
         {skeletonItems.map(skeleton => (
           <View
             key={skeleton.id}
             style={[
-              styles.skeletonWrapper,
+              styles.bookWrapper,
               { width: skeleton.width, marginRight: bookGap },
             ]}
             pointerEvents="none">
@@ -369,10 +368,11 @@ export function BookshelfOverlay({
                 position: 'absolute',
                 bottom: 0,
                 height: skeleton.height,
+                width: skeleton.width,
               }}>
               <BookSkeleton
-                thickness={skeleton.thickness}
-                height={skeleton.bookHeight}
+                width={skeleton.width}
+                pixelHeight={skeleton.height}
               />
             </View>
           </View>
@@ -399,11 +399,6 @@ const styles = StyleSheet.create({
   },
   selectedBook: {
     transform: [{ scale: 1.05 }],
-  },
-  skeletonWrapper: {
-    height: 0, // Zero height so it doesn't affect vertical spacing
-    justifyContent: 'flex-end',
-    overflow: 'visible', // Allow content to extend beyond wrapper
   },
   // Debug visualization layers
   debugLayer: {

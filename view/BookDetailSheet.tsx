@@ -12,10 +12,15 @@ import ImagePicker from 'react-native-image-crop-picker';
 import RNFS from 'react-native-fs';
 import { Book } from '../types/Book';
 import { removeBook, updateBook } from '../services/bookStorage';
-import { saveSpineImage, deleteSpineImage } from '../services/imageStorage';
+import { saveSpineImage, deleteSpineImage, resolveSpineImagePath } from '../services/imageStorage';
+import { uploadSpine, fetchSpine } from '../services/booksApi';
+import { userService } from '../services/userService';
+
 import { BookDetailItem } from './BookDetailItem';
 import { SpineCropper } from './SpineCropper';
+import { SpineSelectorModal } from './SpineSelectorModal';
 import { styles } from './styles/BookDetailSheetStyles';
+
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -51,6 +56,11 @@ export function BookDetailSheet({
     width: number;
     height: number;
   } | null>(null);
+  const [selectorVisible, setSelectorVisible] = useState(false);
+  const [availableSpines, setAvailableSpines] = useState<string[]>([]);
+  const [isFetchingSpines, setIsFetchingSpines] = useState(false);
+  const checkedGoogleIds = useRef<Set<string>>(new Set());
+
 
   useEffect(() => {
     if (currentBookIndex < 0 || currentBookIndex >= books.length) {
@@ -97,6 +107,37 @@ export function BookDetailSheet({
     }
   }, [visible, currentBookIndex]);
 
+  // Auto-check for spines when index changes
+  useEffect(() => {
+    if (!visible || currentBookIndex < 0 || currentBookIndex >= books.length) return;
+
+    const currentBook = books[currentBookIndex];
+    if (currentBook.spineThumbnail || checkedGoogleIds.current.has(currentBook.googleId)) return;
+
+    const checkSpines = async () => {
+      checkedGoogleIds.current.add(currentBook.googleId);
+      setIsFetchingSpines(true);
+      try {
+        const spineUrls = await fetchSpine(currentBook.googleId);
+        if (spineUrls.length === 1) {
+          // Auto-add if only one
+          await handleSpineSelect(spineUrls[0]);
+        } else if (spineUrls.length > 1) {
+          // Show selection modal
+          setAvailableSpines(spineUrls);
+          setSelectorVisible(true);
+        }
+      } catch (error) {
+        console.error('Error auto-checking spines:', error);
+      } finally {
+        setIsFetchingSpines(false);
+      }
+    };
+
+    checkSpines();
+  }, [currentBookIndex, visible, books]);
+
+
   const handleScroll = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
     if (onScrollProgress) onScrollProgress(offsetX);
@@ -131,9 +172,73 @@ export function BookDetailSheet({
     isUserScrolling.current = false;
   };
 
+  const handleSpineSelect = async (url: string) => {
+    if (currentBookIndex < 0 || currentBookIndex >= books.length) return;
+    const currentBook = books[currentBookIndex];
+
+    setSelectorVisible(false);
+    try {
+      const tempPath = `${RNFS.TemporaryDirectoryPath}/spine_${currentBook.googleId}_${Date.now()}.jpg`;
+      const downloadResult = await RNFS.downloadFile({
+        fromUrl: url,
+        toFile: tempPath,
+      }).promise;
+
+      if (downloadResult.statusCode === 200) {
+        const savedPath = await saveSpineImage(tempPath, currentBook.id);
+        await RNFS.unlink(tempPath);
+
+        if (currentBook.spineThumbnail) {
+          await deleteSpineImage(currentBook.spineThumbnail);
+        }
+
+        await updateBook({
+          ...currentBook,
+          spineThumbnail: savedPath,
+          spineUploaded: true, // It's from the server
+        });
+
+        if (onBookUpdated) onBookUpdated();
+      }
+    } catch (error) {
+      console.error('Error downloading selected spine:', error);
+      Alert.alert('Error', 'Failed to download selected spine');
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    setSelectorVisible(false);
+    try {
+      const image = await ImagePicker.openCamera({
+        width: 2000,
+        height: 2000,
+        cropping: false,
+        mediaType: 'photo',
+      });
+      if (image?.path) {
+        setImageDimensions({
+          width: image.width || SCREEN_WIDTH,
+          height: image.height || SCREEN_HEIGHT,
+        });
+        setImageUriToCrop(image.path);
+        setCropperVisible(true);
+      }
+    } catch (error: any) {
+      if (error.message !== 'User cancelled image selection') {
+        Alert.alert('Error', 'Failed to take photo');
+      }
+    }
+  };
+
+
   const handleCropImage = async (base64Image: string, coordinates: any) => {
     if (currentBookIndex < 0 || currentBookIndex >= books.length) return;
     const currentBook = books[currentBookIndex];
+
+    // Close cropper immediately and clear related state
+    setCropperVisible(false);
+    setImageUriToCrop(null);
+    setImageDimensions(null);
 
     try {
       let newThickness = currentBook.thickness;
@@ -159,23 +264,47 @@ export function BookDetailSheet({
       const savedImagePath = await saveSpineImage(tempPath, currentBook.id);
       await RNFS.unlink(tempPath);
 
-      if (currentBook.spineThumbnail)
+      if (currentBook.spineThumbnail) {
         await deleteSpineImage(currentBook.spineThumbnail);
+      }
 
+      // Update local storage first
       await updateBook({
         ...currentBook,
         spineThumbnail: savedImagePath,
         thickness: newThickness,
+        spineUploaded: false,
       });
 
-      setCropperVisible(false);
-      setImageUriToCrop(null);
-      setImageDimensions(null);
       if (onBookUpdated) onBookUpdated();
-      Alert.alert('Success', 'Spine image cropped and saved!');
+
+      // Background upload
+      (async () => {
+        try {
+          const userId = await userService.getPersistentUserId();
+          const resolvedPath = resolveSpineImagePath(savedImagePath);
+          if (resolvedPath) {
+            const uploadSuccess = await uploadSpine(
+              currentBook.googleId,
+              userId,
+              resolvedPath,
+            );
+            if (uploadSuccess) {
+              await updateBook({
+                ...currentBook,
+                spineThumbnail: savedImagePath,
+                thickness: newThickness,
+                spineUploaded: true,
+              });
+              if (onBookUpdated) onBookUpdated();
+            }
+          }
+        } catch (uploadError) {
+          console.error('Background upload failed:', uploadError);
+        }
+      })();
     } catch (error) {
-      console.error('Error saving cropped image:', error);
-      setCropperVisible(false);
+      console.error('Error processing cropped image:', error);
       Alert.alert('Error', 'Failed to save cropped image');
     }
   };
@@ -206,56 +335,51 @@ export function BookDetailSheet({
     );
   };
 
-  const handleAddSpineImage = () => {
+  const handleAddSpineImage = async () => {
     if (currentBookIndex < 0 || currentBookIndex >= books.length) return;
     const currentBook = books[currentBookIndex];
 
-    const alertButtons: any[] = [
-      {
-        text: 'Take Photo',
-        onPress: async () => {
-          try {
-            const image = await ImagePicker.openCamera({
-              width: 2000,
-              height: 2000,
-              cropping: false,
-              mediaType: 'photo',
-            });
-            if (image?.path) {
-              setImageDimensions({
-                width: image.width || SCREEN_WIDTH,
-                height: image.height || SCREEN_HEIGHT,
-              });
-              setImageUriToCrop(image.path);
-              setCropperVisible(true);
-            }
-          } catch (error: any) {
-            if (error.message !== 'User cancelled image selection')
-              Alert.alert('Error', 'Failed to take photo');
-          }
-        },
-      },
-    ];
+    setIsFetchingSpines(true);
+    try {
+      const spineUrls = await fetchSpine(currentBook.googleId);
+      if (spineUrls.length > 0) {
+        setAvailableSpines(spineUrls);
+        setSelectorVisible(true);
+      } else {
+        // No spines on server, show direct options
+        const alertButtons: any[] = [
+          {
+            text: 'Take Photo',
+            onPress: handleTakePhoto,
+          },
+        ];
 
-    if (currentBook.spineThumbnail) {
-      alertButtons.push({
-        text: 'Remove Spine Image',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteSpineImage(currentBook.spineThumbnail!);
-            await updateBook({ ...currentBook, spineThumbnail: undefined });
-            if (onBookUpdated) onBookUpdated();
-          } catch {
-            Alert.alert('Error', 'Failed to remove spine image');
-          }
-        },
-      });
+        if (currentBook.spineThumbnail) {
+          alertButtons.push({
+            text: 'Remove Spine Image',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await deleteSpineImage(currentBook.spineThumbnail!);
+                await updateBook({ ...currentBook, spineThumbnail: undefined });
+                if (onBookUpdated) onBookUpdated();
+              } catch {
+                Alert.alert('Error', 'Failed to remove spine image');
+              }
+            },
+          });
+        }
+        alertButtons.push({ text: 'Cancel', style: 'cancel', onPress: () => { } });
+        Alert.alert('Spine Image', 'No existing spines found. Take a new photo?', alertButtons);
+      }
+    } catch (error) {
+      console.error('Error fetching spines for selection:', error);
+      handleTakePhoto(); // Fallback to camera
+    } finally {
+      setIsFetchingSpines(false);
     }
-    alertButtons.push({ text: 'Cancel', style: 'cancel', onPress: () => { } });
-
-    Alert.alert('Spine Image', 'Choose an option', alertButtons);
   };
+
 
   if (!visible || books.length === 0) return null;
 
@@ -318,6 +442,14 @@ export function BookDetailSheet({
           cropperRef={cropperRef}
         />
       )}
+      <SpineSelectorModal
+        visible={selectorVisible}
+        spines={availableSpines}
+        onSelect={handleSpineSelect}
+        onTakePhoto={handleTakePhoto}
+        onClose={() => setSelectorVisible(false)}
+      />
     </Modal>
   );
 }
+

@@ -99,6 +99,17 @@ export async function saveBooks(books: Book[]): Promise<void> {
   }
 }
 
+export async function getBookById(bookId: string): Promise<Book | undefined> {
+  try {
+    const books = await loadBooks();
+    return books.find(b => b.id === bookId);
+  } catch (error) {
+    console.error('Error getting book by ID:', error);
+    return undefined;
+  }
+}
+
+
 /**
  * Updates book thickness for all books with spine images to match the image aspect ratio
  * This ensures the spine dimensions match the actual spine image proportions

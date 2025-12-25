@@ -13,14 +13,19 @@ import {
   TouchableOpacity,
   InteractionManager,
 } from 'react-native';
+import RNFS from 'react-native-fs';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
+
 import {
   searchBooks,
   getBookDetails,
   Book as ApiBook,
   convertToBook,
+  fetchSpine,
 } from '../services/booksApi';
-import { saveBook } from '../services/bookStorage';
+import { saveBook, updateBook, getBookById } from '../services/bookStorage';
+import { saveSpineImage } from '../services/imageStorage';
+
 import { BarcodeScanner } from './BarcodeScanner';
 import { SearchBar } from './SearchBar';
 import { SearchResultItem } from './SearchResultItem';
@@ -55,7 +60,31 @@ export function BookSearchSheet({
   const scannedISBNs = useRef<Set<string>>(new Set());
   const scanSuccessful = useRef(false);
 
+  const fetchAndProcessSpine = async (googleId: string, internalBookId: string) => {
+    try {
+      const spineUrls = await fetchSpine(googleId);
+      if (spineUrls.length === 1) {
+        const spineUrl = spineUrls[0];
+        const tempPath = `${RNFS.TemporaryDirectoryPath}/spine_${googleId}_${Date.now()}.jpg`;
+        const downloadResult = await RNFS.downloadFile({
+          fromUrl: spineUrl,
+          toFile: tempPath,
+        }).promise;
+
+        if (downloadResult.statusCode === 200) {
+          const savedPath = await saveSpineImage(tempPath, internalBookId);
+          await RNFS.unlink(tempPath);
+          return savedPath;
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching/processing spine:', error);
+    }
+    return undefined;
+  };
+
   const handleBarcodeScanned = async (isbn: string) => {
+
     if (isScanning || scannedISBNs.current.has(isbn)) return;
 
     scannedISBNs.current.add(isbn);
@@ -82,10 +111,23 @@ export function BookSearchSheet({
 
         if (details) {
           const bookToSave = convertToBook(book, details);
-          await new Promise<void>(resolve => setTimeout(resolve, 1000));
           const savedBookId = await saveBook(bookToSave);
 
+          // Try to fetch spine after saving the book
+          const spinePath = await fetchAndProcessSpine(book.id, savedBookId);
+          if (spinePath) {
+            const savedBook = await getBookById(savedBookId);
+            if (savedBook) {
+              await updateBook({
+                ...savedBook,
+                spineThumbnail: spinePath,
+                spineUploaded: true, // It came from server, so it's already "uploaded" in a sense, or at least synced
+              });
+            }
+          }
+
           ReactNativeHapticFeedback.trigger('notificationSuccess', {
+
             enableVibrateFallback: true,
             ignoreAndroidSystemSettings: false,
           });
@@ -275,9 +317,23 @@ export function BookSearchSheet({
 
       if (details) {
         const bookToSave = convertToBook(book, details);
-        await new Promise<void>(resolve => setTimeout(resolve, 1000));
         const savedBookId = await saveBook(bookToSave);
+
+        // Try to fetch spine after saving the book
+        const spinePath = await fetchAndProcessSpine(book.id, savedBookId);
+        if (spinePath) {
+          const savedBook = await getBookById(savedBookId);
+          if (savedBook) {
+            await updateBook({
+              ...savedBook,
+              spineThumbnail: spinePath,
+              spineUploaded: true,
+            });
+          }
+        }
+
         if (onBookAdded) onBookAdded(savedBookId);
+
         isHandlingBookPress.current = false;
         Keyboard.dismiss();
         onClose();

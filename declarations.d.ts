@@ -1,5 +1,5 @@
 declare module 'react-native-perspective-image-cropper' {
-  import {Component} from 'react';
+  import { Component } from 'react';
 
   export interface Point {
     x: number;
@@ -30,3 +30,9 @@ declare module 'react-native-perspective-image-cropper' {
     crop(): void;
   }
 }
+declare module '@env' {
+  export const GOOGLE_CLOUD_KEY: string;
+  export const BASE_URL: string;
+  export const SPINE_API_BASE_URL: string;
+}
+

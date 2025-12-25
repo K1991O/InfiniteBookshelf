@@ -22,6 +22,8 @@ import {
   updateBooksWithSpineImageDimensions,
 } from './services/bookStorage';
 import { useScrollAnimation } from './hooks/useScrollAnimation';
+import { userService } from './services/userService';
+
 
 function App() {
   const [isSearchSheetVisible, setIsSearchSheetVisible] = useState(false);
@@ -57,7 +59,15 @@ function App() {
   // Load books on mount and when refreshTrigger changes
   useEffect(() => {
     loadBooksFromStorage();
+
+    // Log the persistent User ID for verification
+    const fetchUserId = async () => {
+      const userId = await userService.getPersistentUserId();
+      console.log('Persistent Persistent User ID:', userId);
+    };
+    fetchUserId();
   }, [loadBooksFromStorage, refreshTrigger]);
+
 
   const handleBookAdded = useCallback(
     async (bookId: string) => {

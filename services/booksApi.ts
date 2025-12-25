@@ -1,7 +1,8 @@
-import {Book as InternalBook} from '../types/Book';
+import { Book as InternalBook } from '../types/Book';
+import { Platform } from 'react-native';
+import { GOOGLE_CLOUD_KEY, BASE_URL, SPINE_API_BASE_URL } from '@env';
 
-const GOOGLE_CLOUD_KEY = 'YOUR_GOOGLE_CLOUD_KEY';
-const BASE_URL = 'https://www.googleapis.com/books/v1';
+
 
 export interface Book {
   id: string;
@@ -184,5 +185,58 @@ export const convertToBook = (
     smallThumbnail: details.smallThumbnail || apiBook.smallThumbnail || '',
     ISBN10: details.ISBN10,
     ISBN13: details.ISBN13,
+    spineUploaded: false,
   };
 };
+
+export async function fetchSpine(googleId: string): Promise<string[]> {
+  try {
+    const response = await fetch(`${SPINE_API_BASE_URL}/image/book/${googleId}`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    if (Array.isArray(data)) {
+      return data
+        .map(item => item.imageLinks?.Thumbnail)
+        .filter((url): url is string => !!url);
+    }
+    return [];
+  } catch (error) {
+    console.error('Error fetching spine:', error);
+    return [];
+  }
+}
+
+export async function uploadSpine(
+  googleId: string,
+  userId: string,
+  imageUri: string,
+): Promise<boolean> {
+  try {
+    const formData = new FormData();
+    formData.append('userId', userId);
+    formData.append('googleId', googleId);
+
+    // imageUri might have file:// prefix, need to handle it for FormData
+    const fileUri = Platform.OS === 'android' ? imageUri : imageUri.replace('file://', '');
+
+    formData.append('file', {
+      uri: fileUri,
+      type: 'image/jpeg',
+      name: `spine_${googleId}.jpg`,
+    } as any);
+
+    const response = await fetch(`${SPINE_API_BASE_URL}/Image/process`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    return response.ok;
+  } catch (error) {
+    console.error('Error uploading spine:', error);
+    return false;
+  }
+}
+
