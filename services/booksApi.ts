@@ -1,3 +1,5 @@
+import {Book as InternalBook} from '../types/Book';
+
 const GOOGLE_CLOUD_KEY = 'YOUR_GOOGLE_CLOUD_KEY';
 const BASE_URL = 'https://www.googleapis.com/books/v1';
 
@@ -69,23 +71,32 @@ export async function searchBooks(query: string): Promise<Book[]> {
     // Check if query is 10 or more digits (likely an ISBN)
     const isISBN = /^\d{10,}$/.test(query.trim());
     const searchQuery = isISBN ? `isbn:${query.trim()}` : query;
-    
+
     const response = await fetch(
-      `${BASE_URL}/volumes?q=${encodeURIComponent(searchQuery)}&key=${GOOGLE_CLOUD_KEY}`
+      `${BASE_URL}/volumes?q=${encodeURIComponent(
+        searchQuery,
+      )}&key=${GOOGLE_CLOUD_KEY}`,
     );
     const data: BooksSearchResponse = await response.json();
-    
+
     if (!data.items) {
       return [];
     }
-    
-    return data.items.map((item) => ({
+
+    return data.items.map(item => ({
       id: item.id,
       title: item.volumeInfo.title,
-      subtitle: item.volumeInfo.subtitle || item.volumeInfo.authors?.join(', ') || '',
+      subtitle:
+        item.volumeInfo.subtitle || item.volumeInfo.authors?.join(', ') || '',
       authors: item.volumeInfo.authors,
-      thumbnail: item.volumeInfo.imageLinks?.thumbnail?.replace('http://', 'https://'),
-      smallThumbnail: item.volumeInfo.imageLinks?.smallThumbnail?.replace('http://', 'https://'),
+      thumbnail: item.volumeInfo.imageLinks?.thumbnail?.replace(
+        'http://',
+        'https://',
+      ),
+      smallThumbnail: item.volumeInfo.imageLinks?.smallThumbnail?.replace(
+        'http://',
+        'https://',
+      ),
     }));
   } catch (error) {
     console.error('Error searching books:', error);
@@ -93,13 +104,15 @@ export async function searchBooks(query: string): Promise<Book[]> {
   }
 }
 
-export async function getBookDetails(bookId: string): Promise<BookDetails | null> {
+export async function getBookDetails(
+  bookId: string,
+): Promise<BookDetails | null> {
   try {
     const response = await fetch(
-      `${BASE_URL}/volumes/${bookId}?key=${GOOGLE_CLOUD_KEY}`
+      `${BASE_URL}/volumes/${bookId}?key=${GOOGLE_CLOUD_KEY}`,
     );
     const data: BookDetailsResponse = await response.json();
-    
+
     // Extract ISBN from industryIdentifiers
     let ISBN10: string | undefined;
     let ISBN13: string | undefined;
@@ -112,15 +125,22 @@ export async function getBookDetails(bookId: string): Promise<BookDetails | null
         }
       }
     }
-    
+
     return {
       id: data.id,
       title: data.volumeInfo.title,
-      subtitle: data.volumeInfo.subtitle || data.volumeInfo.authors?.join(', ') || '',
+      subtitle:
+        data.volumeInfo.subtitle || data.volumeInfo.authors?.join(', ') || '',
       authors: data.volumeInfo.authors,
       dimensions: data.volumeInfo.dimensions || null,
-      smallThumbnail: data.volumeInfo.imageLinks?.smallThumbnail?.replace('http://', 'https://'),
-      thumbnail: data.volumeInfo.imageLinks?.thumbnail?.replace('http://', 'https://'),
+      smallThumbnail: data.volumeInfo.imageLinks?.smallThumbnail?.replace(
+        'http://',
+        'https://',
+      ),
+      thumbnail: data.volumeInfo.imageLinks?.thumbnail?.replace(
+        'http://',
+        'https://',
+      ),
       ISBN10,
       ISBN13,
     };
@@ -130,5 +150,39 @@ export async function getBookDetails(bookId: string): Promise<BookDetails | null
   }
 }
 
+// Helper function to convert API BookDetails to our Book type
+export const convertToBook = (
+  apiBook: Book,
+  details: BookDetails,
+): InternalBook => {
+  // Parse dimensions from strings (e.g., "20.0 cm" or "20.0") to numbers
+  // Returns null if dimension is missing so we can apply specific defaults
+  const parseDimension = (dim?: string): number | null => {
+    if (!dim) return null;
+    const match = dim.match(/(\d+\.?\d*)/);
+    return match ? parseFloat(match[1]) : null;
+  };
 
+  // Parse each dimension, using null to indicate missing values
+  const parsedHeight = parseDimension(details.dimensions?.height);
+  const parsedWidth = parseDimension(details.dimensions?.width);
+  const parsedThickness = parseDimension(details.dimensions?.thickness);
 
+  // Apply defaults for missing dimensions
+  const height = parsedHeight ?? 20.0; // Default height
+  const width = parsedWidth ?? 12.7; // Default width (based on sample books)
+  const thickness = parsedThickness ?? 2.1; // Default thickness as specified
+
+  return {
+    id: `${details.id}-${Date.now()}`, // Unique ID
+    googleId: details.id,
+    title: details.title,
+    author: details.authors?.join(', ') || 'Unknown Author',
+    thickness,
+    height,
+    width,
+    smallThumbnail: details.smallThumbnail || apiBook.smallThumbnail || '',
+    ISBN10: details.ISBN10,
+    ISBN13: details.ISBN13,
+  };
+};

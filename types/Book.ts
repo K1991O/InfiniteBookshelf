@@ -26,7 +26,8 @@ export const sampleBooks: Book[] = [
     thickness: 1.0,
     ISBN10: '0300115466',
     ISBN13: '9780300115468',
-    smallThumbnail: 'http://books.google.com/books/content?id=IfNqvQXbuk8C&printsec=frontcover&img=1&zoom=5&imgtk=AFLRE70K0hNNDT4j8hpZbwfEff7aPbqId1hqoihsRTT6R9F-VCuVSR2rI8YNJIH6_b_CaisOPuTytp8Ec7mAON5VOU7T8qn61Wgg_sXxkclLzvdQTK5hr19knJdRq3AmZ9hgC8WH3AhV&source=gbs_api'
+    smallThumbnail:
+      'http://books.google.com/books/content?id=IfNqvQXbuk8C&printsec=frontcover&img=1&zoom=5&imgtk=AFLRE70K0hNNDT4j8hpZbwfEff7aPbqId1hqoihsRTT6R9F-VCuVSR2rI8YNJIH6_b_CaisOPuTytp8Ec7mAON5VOU7T8qn61Wgg_sXxkclLzvdQTK5hr19knJdRq3AmZ9hgC8WH3AhV&source=gbs_api',
   },
   {
     id: '2',
@@ -38,7 +39,8 @@ export const sampleBooks: Book[] = [
     thickness: 3.7,
     ISBN10: '0141192801',
     ISBN13: '9780141192802',
-    smallThumbnail: 'http://books.google.com/books/publisher/content?id=sYmMEAAAQBAJ&printsec=frontcover&img=1&zoom=5&imgtk=AFLRE735Y_CDEmsS6AD_mtu2mPnD3q4_YFPbZwAHMcy0TjDPujLB2kEYY9y0Wf1iZIxiRRk6FeZRKpSwM_xgPSczjCyEO-jnfp1JLqc9Q2pQDvqFEsU0cC5l0sg_IF2jqfDZvqVBIOPf&source=gbs_api'
+    smallThumbnail:
+      'http://books.google.com/books/publisher/content?id=sYmMEAAAQBAJ&printsec=frontcover&img=1&zoom=5&imgtk=AFLRE735Y_CDEmsS6AD_mtu2mPnD3q4_YFPbZwAHMcy0TjDPujLB2kEYY9y0Wf1iZIxiRRk6FeZRKpSwM_xgPSczjCyEO-jnfp1JLqc9Q2pQDvqFEsU0cC5l0sg_IF2jqfDZvqVBIOPf&source=gbs_api',
   },
   {
     id: '3',
@@ -50,6 +52,7 @@ export const sampleBooks: Book[] = [
     thickness: 3.1,
     ISBN10: '0141981806',
     ISBN13: '9780141981802',
-    smallThumbnail: 'http://books.google.com/books/content?id=UPNtswEACAAJ&printsec=frontcover&img=1&zoom=5&imgtk=AFLRE72vXJ-3i0-BqH4kxClMZ2Eyx4BYe88-pubgD4d7-eUjkFjMHhcgWO3mEzUx8ROzaohGbKC_uRiNiXdxUtDMA4CmjxAFXSjP28zk2DBiXdbntmZ-hX9FRAK-n8o3QrptAB3113Gc&source=gbs_api'
-  }
+    smallThumbnail:
+      'http://books.google.com/books/content?id=UPNtswEACAAJ&printsec=frontcover&img=1&zoom=5&imgtk=AFLRE72vXJ-3i0-BqH4kxClMZ2Eyx4BYe88-pubgD4d7-eUjkFjMHhcgWO3mEzUx8ROzaohGbKC_uRiNiXdxUtDMA4CmjxAFXSjP28zk2DBiXdbntmZ-hX9FRAK-n8o3QrptAB3113Gc&source=gbs_api',
+  },
 ];

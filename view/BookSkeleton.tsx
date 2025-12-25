@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Dimensions } from 'react-native';
+import { StyleSheet, Animated, Dimensions } from 'react-native';
 import { SHELF_HEIGHT_CM } from '../types/Book';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -12,9 +12,9 @@ interface BookSkeletonProps {
   height?: number; // in cm, defaults to average book height
 }
 
-export function BookSkeleton({ 
-  thickness = 2.5, // Default average book thickness
-  height = 20 // Default average book height
+export function BookSkeleton({
+  thickness = 3, // Default average book thickness
+  height = 30, // Default average book height
 }: BookSkeletonProps) {
   const strobeAnim = useRef(new Animated.Value(0)).current;
 
@@ -32,7 +32,7 @@ export function BookSkeleton({
           duration: 800,
           useNativeDriver: false,
         }),
-      ])
+      ]),
     );
 
     strobeAnimation.start();
@@ -45,7 +45,7 @@ export function BookSkeleton({
   // Calculate dimensions - must match BookshelfOverlay calculation
   const ShelfHeight = SCREEN_WIDTH * SHELF_HEIGHT_TO_WIDTH_RATIO;
   const bookWidthPx = (thickness / SHELF_HEIGHT_CM) * ShelfHeight;
-  const actualBookHeight = (ShelfHeight * height / SHELF_HEIGHT_CM);
+  const actualBookHeight = (ShelfHeight * height) / SHELF_HEIGHT_CM;
 
   // Interpolate opacity for strobing effect
   const opacity = strobeAnim.interpolate({
@@ -81,6 +81,3 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 });
-
-
-

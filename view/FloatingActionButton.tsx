@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface FloatingActionButtonProps {
@@ -15,8 +15,7 @@ export function FloatingActionButton({ onPress }: FloatingActionButtonProps) {
     <TouchableOpacity
       style={[styles.fab, { bottom: bottomOffset }]}
       onPress={onPress}
-      activeOpacity={0.8}
-    >
+      activeOpacity={0.8}>
       <Text style={styles.fabIcon}>+</Text>
     </TouchableOpacity>
   );

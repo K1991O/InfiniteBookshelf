@@ -104,6 +104,7 @@ npx react-native run-android
 4. Then:
 
 pair without USB
+
 - Wireless debugging in the settings.
 - Pair device with pairing code
 

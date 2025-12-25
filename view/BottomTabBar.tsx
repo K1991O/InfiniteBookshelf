@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, Image } from 'react-native';
-import { styles } from './styles/Main';
+import {View, Text, Image} from 'react-native';
+import {styles} from './styles/Main';
 
 export function BottomTabBar() {
   return (
@@ -14,6 +14,3 @@ export function BottomTabBar() {
     </View>
   );
 }
-
-
-

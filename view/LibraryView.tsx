@@ -15,6 +15,14 @@ const generateItems = (count: number) => {
 const ITEM_COUNT = 5; // Large enough to feel infinite
 const NAV_BAR_HEIGHT = 44;
 
+const imagePattern = [
+  require('../assets/library_4thin.jpg'),
+  require('../assets/library_2thin.jpg'),
+  require('../assets/library_2thin.jpg'),
+  require('../assets/library_2thin.jpg'),
+  require('../assets/library_2endThin.jpg'),
+];
+
 interface LibraryViewProps {
   onScroll: any;
   refreshTrigger?: number; // Increment this to trigger refresh
@@ -26,9 +34,8 @@ interface LibraryViewProps {
   scrollProgress?: number | undefined; // Scroll offset from BookDetailSheet for smooth scaling (undefined when sheet is closed)
 }
 
-export function LibraryView({ 
-  onScroll, 
-  refreshTrigger, 
+export function LibraryView({
+  onScroll,
   loadingBookCount = 0,
   onBookPress,
   selectedBookId,
@@ -37,27 +44,11 @@ export function LibraryView({
   scrollProgress,
 }: LibraryViewProps) {
   const insets = useSafeAreaInsets();
-  
-  // Pattern: one Library_4, three Library_2, one Library_2end
-  const imagePatternThick = [
-    require('../assets/library_4.jpg'),
-    require('../assets/library_2.jpg'),
-    require('../assets/library_2.jpg'),
-    require('../assets/library_2.jpg'),
-    require('../assets/library_2end.jpg'),
-  ];
 
-  const imagePatternThin = [
-    require('../assets/library_4thin.jpg'),
-    require('../assets/library_2thin.jpg'),
-    require('../assets/library_2thin.jpg'),
-    require('../assets/library_2thin.jpg'),
-    require('../assets/library_2endThin.jpg'),
-  ];
 
-  const imagePattern = imagePatternThin;
-
-  const [patternHeights, setPatternHeights] = useState<number[]>([700, 300, 300, 300, 300]);
+  const [patternHeights, setPatternHeights] = useState<number[]>([
+    700, 300, 300, 300, 300,
+  ]);
   const [imageStyles, setImageStyles] = useState<any[]>([]);
 
   // Load image dimensions and calculate heights
@@ -69,7 +60,7 @@ export function LibraryView({
       for (let i = 0; i < imagePattern.length; i++) {
         const imageSource = Image.resolveAssetSource(imagePattern[i]);
         try {
-          await new Promise<void>((resolve) => {
+          await new Promise<void>(resolve => {
             Image.getSize(
               imageSource.uri,
               (width, height) => {
@@ -91,10 +82,10 @@ export function LibraryView({
                   height: defaultHeight,
                 });
                 resolve();
-              }
+              },
             );
           });
-        } catch (error) {
+        } catch {
           // Fallback to default height
           const defaultHeight = i === 0 ? 700 : 300;
           heights.push(defaultHeight);
@@ -117,20 +108,29 @@ export function LibraryView({
     const patternLength = patternHeights.length;
     const fullPatterns = Math.floor(index / patternLength);
     const patternIndex = index % patternLength;
-    
+
     // Sum of all heights in one pattern
-    const patternTotalHeight = patternHeights.reduce((sum, height) => sum + height, 0);
-    
+    const patternTotalHeight = patternHeights.reduce(
+      (sum, height) => sum + height,
+      0,
+    );
+
     // Offset from full patterns
     const fullPatternsOffset = fullPatterns * patternTotalHeight;
-    
+
     // Offset within the current pattern
-    const patternOffset = patternHeights.slice(0, patternIndex).reduce((sum, height) => sum + height, 0);
-    
+    const patternOffset = patternHeights
+      .slice(0, patternIndex)
+      .reduce((sum, height) => sum + height, 0);
+
     return fullPatternsOffset + patternOffset;
   };
 
-  const renderLibraryItem = ({ item, index }: { item: { id: string }, index: number }) => {
+  const renderLibraryItem = ({
+    index,
+  }: {
+    index: number;
+  }) => {
     const imageIndex = index % imagePattern.length;
     const imageSource = imagePattern[imageIndex];
     const itemStyle = imageStyles[imageIndex] || {
@@ -143,13 +143,9 @@ export function LibraryView({
 
     return (
       <View>
-        <Image
-          source={imageSource}
-          style={itemStyle}
-          resizeMode="cover"
-        />
+        <Image source={imageSource} style={itemStyle} resizeMode="cover" />
         {shouldRenderOverlay && (
-          <BookshelfOverlay 
+          <BookshelfOverlay
             books={books}
             patternHeights={patternHeights}
             totalContentHeight={totalContentHeight}
@@ -169,7 +165,7 @@ export function LibraryView({
     const imageIndex = index % patternHeights.length;
     const itemHeight = patternHeights[imageIndex];
     const offset = getItemOffset(index);
-    
+
     return {
       length: itemHeight,
       offset: offset,
@@ -178,14 +174,15 @@ export function LibraryView({
   };
 
   // Calculate total content height for all items
-  const totalContentHeight = patternHeights.reduce((sum, height) => sum + height, 0) * ITEM_COUNT;
+  const totalContentHeight =
+    patternHeights.reduce((sum, height) => sum + height, 0) * ITEM_COUNT;
 
   return (
     <View style={styles.container}>
       <FlatList
         data={generateItems(ITEM_COUNT)}
         renderItem={renderLibraryItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={item => item.id}
         getItemLayout={getItemLayout}
         onScroll={onScroll}
         scrollEventThrottle={16}

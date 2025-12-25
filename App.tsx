@@ -4,12 +4,9 @@
  * @format
  */
 
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { StatusBar, View, Platform, Animated, Dimensions } from 'react-native';
-import {
-  SafeAreaProvider,
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { styles } from './view/styles/Main';
 import { LibraryView } from './view/LibraryView';
@@ -19,7 +16,12 @@ import { FloatingActionButton } from './view/FloatingActionButton';
 import { BookSearchSheet } from './view/BookSearchSheet';
 import { BookDetailSheet } from './view/BookDetailSheet';
 import { Book } from './types/Book';
-import { loadBooks, saveBooks, updateBooksWithSpineImageDimensions } from './services/bookStorage';
+import {
+  loadBooks,
+  saveBooks,
+  updateBooksWithSpineImageDimensions,
+} from './services/bookStorage';
+import { useScrollAnimation } from './hooks/useScrollAnimation';
 
 function App() {
   const [isSearchSheetVisible, setIsSearchSheetVisible] = useState(false);
@@ -29,18 +31,21 @@ function App() {
   const [isDetailSheetVisible, setIsDetailSheetVisible] = useState(false);
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const lastScrollY = useRef(0);
-  const scrollDirection = useRef(new Animated.Value(1)).current; // 1 = visible, 0 = hidden
-  const isScrollingDown = useRef(false);
-  const isVisible = useRef(true);
+
+  const {
+    handleScroll,
+    navBarTranslateY,
+    bottomBarTranslateY,
+    barOpacity,
+    fabTranslateX,
+  } = useScrollAnimation();
 
   // Load books from storage
   const loadBooksFromStorage = useCallback(async () => {
     try {
       // First, update book thicknesses based on spine images (if needed)
       await updateBooksWithSpineImageDimensions();
-      
+
       // Then load the books
       const savedBooks = await loadBooks();
       setBooks(savedBooks);
@@ -54,31 +59,54 @@ function App() {
     loadBooksFromStorage();
   }, [loadBooksFromStorage, refreshTrigger]);
 
-  const handleBookAdded = () => {
-    setRefreshTrigger(prev => prev + 1);
-    setLoadingBookCount(0);
-  };
+  const handleBookAdded = useCallback(
+    async (bookId: string) => {
+      // Refresh the books list
+      const savedBooks = await loadBooks();
+      setBooks(savedBooks);
+      setLoadingBookCount(0);
+
+      // Find the book and open its details
+      const bookIndex = savedBooks.findIndex(b => b.id === bookId);
+      if (bookIndex >= 0) {
+        setSelectedBookId(bookId);
+        const { width: SCREEN_WIDTH } = Dimensions.get('window');
+        setScrollProgress(bookIndex * SCREEN_WIDTH);
+        setIsDetailSheetVisible(true);
+      }
+    },
+    [setBooks, setLoadingBookCount],
+  );
 
   const handleBookAdding = () => {
     setLoadingBookCount(1);
   };
 
-  const handleBookPress = useCallback((book: Book, index: number) => {
-    setSelectedBookId(book.id);
-    // Initialize scroll progress to the selected book's position
-    const bookIndex = books.findIndex(b => b.id === book.id);
-    if (bookIndex >= 0) {
-      const { width: SCREEN_WIDTH } = Dimensions.get('window');
-      setScrollProgress(bookIndex * SCREEN_WIDTH);
-    }
-    setIsDetailSheetVisible(true);
-  }, [books]);
+  const handleBookPress = useCallback(
+    (book: Book, _index: number) => {
+      setSelectedBookId(book.id);
+      // Initialize scroll progress to the selected book's position
+      const bookIndex = books.findIndex(b => b.id === book.id);
+      if (bookIndex >= 0) {
+        const { width: SCREEN_WIDTH } = Dimensions.get('window');
+        setScrollProgress(bookIndex * SCREEN_WIDTH);
+      }
+      setIsDetailSheetVisible(true);
+    },
+    [books],
+  );
 
-  const handleBookChange = useCallback((index: number) => {
-    if (index >= 0 && index < books.length) {
-      setSelectedBookId(books[index]?.id || null);
-    }
-  }, [books]);
+  const handleBookChange = useCallback(
+    (_index: number) => {
+      // Index is passed from BookDetailSheet but we use scrollProgress to calculate currently selected book's index elsewhere
+      // However, we can use it to update selectedBookId if we want
+      const roundedIndex = Math.round(scrollProgress / Dimensions.get('window').width);
+      if (roundedIndex >= 0 && roundedIndex < books.length) {
+        setSelectedBookId(books[roundedIndex]?.id || null);
+      }
+    },
+    [books, scrollProgress],
+  );
 
   const handleDetailSheetClose = useCallback(() => {
     setIsDetailSheetVisible(false);
@@ -90,7 +118,7 @@ function App() {
     // Clear the selected book
     setSelectedBookId(null);
     setIsDetailSheetVisible(false);
-    
+
     // Trigger refresh to reload books and recalculate positions
     setRefreshTrigger(prev => prev + 1);
   }, []);
@@ -104,7 +132,6 @@ function App() {
     setScrollProgress(offset);
   }, []);
 
-
   const handleBooksReorder = useCallback(async (reorderedBooks: Book[]) => {
     try {
       await saveBooks(reorderedBooks);
@@ -115,66 +142,6 @@ function App() {
     }
   }, []);
 
-  const handleScroll = Animated.event(
-    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-    {
-      useNativeDriver: false,
-      listener: (event: any) => {
-        const currentScrollY = event.nativeEvent.contentOffset.y;
-        const threshold = 10; // Minimum scroll distance to trigger hide/show
-
-        if (currentScrollY < threshold) {
-          // At top, always show
-          if (!isVisible.current) {
-            isVisible.current = true;
-            Animated.spring(scrollDirection, {
-              toValue: 1,
-              useNativeDriver: false,
-            }).start();
-          }
-        } else {
-          const scrollingDown = currentScrollY > lastScrollY.current + threshold;
-          const scrollingUp = currentScrollY < lastScrollY.current - threshold;
-
-          if (scrollingDown && !isScrollingDown.current && isVisible.current) {
-            isScrollingDown.current = true;
-            isVisible.current = false;
-            Animated.spring(scrollDirection, {
-              toValue: 0,
-              useNativeDriver: false,
-            }).start();
-          } else if (scrollingUp && isScrollingDown.current && !isVisible.current) {
-            isScrollingDown.current = false;
-            isVisible.current = true;
-            Animated.spring(scrollDirection, {
-              toValue: 1,
-              useNativeDriver: false,
-            }).start();
-          }
-        }
-
-        lastScrollY.current = currentScrollY;
-      },
-    }
-  );
-
-  const navBarTranslateY = scrollDirection.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-150, -20],
-  });
-
-  const bottomBarTranslateY = scrollDirection.interpolate({
-    inputRange: [0, 1],
-    outputRange: [150, 20],
-  });
-
-  const barOpacity = scrollDirection;
-  
-  const fabTranslateX = scrollDirection.interpolate({
-    inputRange: [0, 1],
-    outputRange: [200, 0],
-  });
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -184,8 +151,8 @@ function App() {
           translucent={Platform.OS === 'android'}
         />
         <View style={styles.appContainer}>
-          <LibraryView 
-            onScroll={handleScroll} 
+          <LibraryView
+            onScroll={handleScroll}
             refreshTrigger={refreshTrigger}
             loadingBookCount={loadingBookCount}
             onBookPress={handleBookPress}
@@ -195,9 +162,16 @@ function App() {
             scrollProgress={isDetailSheetVisible ? scrollProgress : undefined}
           />
           {/* Static white background for status bar area */}
-          <SafeAreaView style={styles.statusBarArea} edges={['top']} pointerEvents="none" />
+          <SafeAreaView
+            style={styles.statusBarArea}
+            edges={['top']}
+            pointerEvents="none"
+          />
           {/* Navigation bar that slides out */}
-          <SafeAreaView style={styles.topSafeArea} edges={['top']} pointerEvents="box-none">
+          <SafeAreaView
+            style={styles.topSafeArea}
+            edges={['top']}
+            pointerEvents="box-none">
             <Animated.View
               style={[
                 styles.navBarContainer,
@@ -205,8 +179,7 @@ function App() {
                   transform: [{ translateY: navBarTranslateY }],
                   opacity: barOpacity,
                 },
-              ]}
-            >
+              ]}>
               <NavigationBar />
             </Animated.View>
           </SafeAreaView>
@@ -218,9 +191,11 @@ function App() {
                 transform: [{ translateY: bottomBarTranslateY }],
                 opacity: barOpacity,
               },
-            ]}
-          >
-            <SafeAreaView style={styles.bottomSafeArea} edges={['bottom']} pointerEvents="box-none">
+            ]}>
+            <SafeAreaView
+              style={styles.bottomSafeArea}
+              edges={['bottom']}
+              pointerEvents="box-none">
               <BottomTabBar />
             </SafeAreaView>
           </Animated.View>
@@ -228,16 +203,15 @@ function App() {
           <Animated.View
             style={[
               {
-                transform: [
-                  { translateX: fabTranslateX },
-                ],
+                transform: [{ translateX: fabTranslateX }],
                 opacity: barOpacity,
               },
-            ]}
-          >
-            <FloatingActionButton onPress={() => {
-              setIsSearchSheetVisible(true);
-            }} />
+            ]}>
+            <FloatingActionButton
+              onPress={() => {
+                setIsSearchSheetVisible(true);
+              }}
+            />
           </Animated.View>
           {/* Book Search Sheet */}
           <BookSearchSheet
@@ -253,7 +227,11 @@ function App() {
           <BookDetailSheet
             visible={isDetailSheetVisible}
             books={books}
-            currentBookIndex={selectedBookId ? books.findIndex(b => b.id === selectedBookId) : -1}
+            currentBookIndex={
+              selectedBookId
+                ? books.findIndex(b => b.id === selectedBookId)
+                : -1
+            }
             onClose={handleDetailSheetClose}
             onBookChange={handleBookChange}
             onBookDeleted={handleBookDeleted}
@@ -265,6 +243,5 @@ function App() {
     </GestureHandlerRootView>
   );
 }
-
 
 export default App;

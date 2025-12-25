@@ -8,6 +8,23 @@ const getSpineImagesDirectory = () => {
   return `${RNFS.DocumentDirectoryPath}/spine_images`;
 };
 
+// Resolve a stored path (could be relative or absolute) to a usable URI
+export function resolveSpineImagePath(path: string | undefined): string | undefined {
+  if (!path) return undefined;
+
+  // If it's already an absolute path (legacy), return it as is
+  // (but migrate it later in bookStorage)
+  if (path.includes(RNFS.DocumentDirectoryPath)) {
+    return Platform.OS === 'android' && !path.startsWith('file://')
+      ? `file://${path}`
+      : path;
+  }
+
+  // If it's a relative path (filename only), resolve it
+  const fullPath = `${getSpineImagesDirectory()}/${path}`;
+  return Platform.OS === 'android' ? `file://${fullPath}` : fullPath;
+}
+
 // Ensure the spine images directory exists
 export async function ensureSpineImagesDirectory(): Promise<void> {
   try {
@@ -23,27 +40,30 @@ export async function ensureSpineImagesDirectory(): Promise<void> {
 }
 
 // Save an image to the app-specific directory
-export async function saveSpineImage(sourceUri: string, bookId: string): Promise<string> {
+export async function saveSpineImage(
+  sourceUri: string,
+  bookId: string,
+): Promise<string> {
   try {
     // Ensure directory exists
     await ensureSpineImagesDirectory();
-    
+
     // Remove file:// prefix if present
     const sourcePath = sourceUri.replace('file://', '');
-    
+
     // Create a unique filename based on bookId and timestamp
     const timestamp = Date.now();
     const extension = sourcePath.split('.').pop() || 'jpg';
     const filename = `spine_${bookId}_${timestamp}.${extension}`;
-    
+
     // Create destination path
     const destPath = `${getSpineImagesDirectory()}/${filename}`;
-    
+
     // Copy the file
     await RNFS.copyFile(sourcePath, destPath);
-    
-    // Return the path with file:// prefix for React Native Image component
-    return Platform.OS === 'android' ? `file://${destPath}` : destPath;
+
+    // Return just the filename for storage
+    return filename;
   } catch (error) {
     console.error('Error saving spine image:', error);
     throw error;
@@ -54,10 +74,10 @@ export async function saveSpineImage(sourceUri: string, bookId: string): Promise
 export async function deleteSpineImage(imageUri: string): Promise<void> {
   try {
     if (!imageUri) return;
-    
+
     // Remove file:// prefix if present
     const imagePath = imageUri.replace('file://', '');
-    
+
     // Check if file exists
     const exists = await RNFS.exists(imagePath);
     if (exists) {
@@ -70,21 +90,23 @@ export async function deleteSpineImage(imageUri: string): Promise<void> {
 }
 
 // Clean up orphaned spine images (images that don't belong to any book)
-export async function cleanupOrphanedImages(activeImageUris: string[]): Promise<void> {
+export async function cleanupOrphanedImages(
+  activeImageUris: string[],
+): Promise<void> {
   try {
     const dir = getSpineImagesDirectory();
     const exists = await RNFS.exists(dir);
     if (!exists) return;
-    
+
     // Get all files in the directory
     const files = await RNFS.readDir(dir);
-    
-    // Normalize active URIs for comparison
-    const normalizedActiveUris = activeImageUris.map(uri => uri.replace('file://', ''));
-    
+
+    // Normalize active filenames for comparison
+    const activeFilenames = activeImageUris.map(uri => uri.split('/').pop());
+
     // Delete files that are not in the active list
     for (const file of files) {
-      if (!normalizedActiveUris.includes(file.path)) {
+      if (!activeFilenames.includes(file.name)) {
         await RNFS.unlink(file.path);
       }
     }
@@ -92,4 +114,3 @@ export async function cleanupOrphanedImages(activeImageUris: string[]): Promise<
     console.error('Error cleaning up orphaned images:', error);
   }
 }
-

@@ -7,7 +7,7 @@ import {
   Modal,
   Image,
 } from 'react-native';
-import { Camera, CameraType } from 'react-native-camera-kit';
+import {Camera, CameraType} from 'react-native-camera-kit';
 
 interface BarcodeScannerProps {
   visible: boolean;
@@ -16,20 +16,24 @@ interface BarcodeScannerProps {
   isScanning: boolean;
 }
 
-export function BarcodeScanner({ visible, onClose, onBarcodeScanned, isScanning }: BarcodeScannerProps) {
+export function BarcodeScanner({
+  visible,
+  onClose,
+  onBarcodeScanned,
+  isScanning,
+}: BarcodeScannerProps) {
   return (
     <Modal
       visible={visible}
       transparent={false}
       animationType="slide"
-      onRequestClose={onClose}
-    >
+      onRequestClose={onClose}>
       <View style={styles.scannerContainer}>
         <Camera
           style={StyleSheet.absoluteFill}
           cameraType={CameraType.Back}
           scanBarcode={true}
-          onReadCode={(event) => {
+          onReadCode={event => {
             if (event.nativeEvent.codeStringValue && !isScanning) {
               onBarcodeScanned(event.nativeEvent.codeStringValue);
             }
@@ -41,13 +45,12 @@ export function BarcodeScanner({ visible, onClose, onBarcodeScanned, isScanning 
           <View style={styles.scannerHeader}>
             <TouchableOpacity
               style={styles.scannerCloseButton}
-              onPress={onClose}
-            >
+              onPress={onClose}>
               <Text style={styles.scannerCloseButtonText}>✕</Text>
             </TouchableOpacity>
             {/* <Text style={styles.scannerTitle}>Scan Barcode</Text> */}
           </View>
-          
+
           <View style={styles.scannerCenterArea}>
             {/* ISBN Image above the frame */}
             <Image
@@ -55,22 +58,34 @@ export function BarcodeScanner({ visible, onClose, onBarcodeScanned, isScanning 
               style={styles.isbnImage}
               resizeMode="contain"
             />
-            
+
             {/* Scanning frame */}
             <View style={styles.scannerFrame}>
               <View style={styles.scannerFrameCorner} />
-              <View style={[styles.scannerFrameCorner, styles.scannerFrameCornerTopRight]} />
-              <View style={[styles.scannerFrameCorner, styles.scannerFrameCornerBottomLeft]} />
-              <View style={[styles.scannerFrameCorner, styles.scannerFrameCornerBottomRight]} />
+              <View
+                style={[
+                  styles.scannerFrameCorner,
+                  styles.scannerFrameCornerTopRight,
+                ]}
+              />
+              <View
+                style={[
+                  styles.scannerFrameCorner,
+                  styles.scannerFrameCornerBottomLeft,
+                ]}
+              />
+              <View
+                style={[
+                  styles.scannerFrameCorner,
+                  styles.scannerFrameCornerBottomRight,
+                ]}
+              />
             </View>
-            
+
             {/* Instruction text below the frame */}
-            <Text style={styles.scannerHint}>
-              scan your books ISBN number
-            </Text>
+            <Text style={styles.scannerHint}>scan your books ISBN number</Text>
           </View>
         </View>
-        
       </View>
     </Modal>
   );
@@ -211,5 +226,3 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
 });
-
-
