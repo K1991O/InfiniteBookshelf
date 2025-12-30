@@ -15,8 +15,59 @@ import Svg, { Polygon } from 'react-native-svg';
 const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-class CustomCrop extends Component {
-    constructor(props) {
+interface CornerCoordinate {
+    x: number;
+    y: number;
+}
+
+interface CornerHistoryEntry extends CornerCoordinate {
+    timestamp: number;
+}
+
+interface RectangleCoordinates {
+    topLeft: CornerCoordinate;
+    topRight: CornerCoordinate;
+    bottomLeft: CornerCoordinate;
+    bottomRight: CornerCoordinate;
+}
+
+interface CustomCropProps {
+    width: number;
+    height: number;
+    initialImage: string;
+    rectangleCoordinates?: RectangleCoordinates;
+    updateImage: (image: string, coordinates: any) => void;
+    overlayColor?: string;
+    overlayOpacity?: number;
+    overlayStrokeColor?: string;
+    overlayStrokeWidth?: number;
+}
+
+interface CustomCropState {
+    viewHeight: number;
+    viewWidth: number;
+    height: number;
+    width: number;
+    image: string;
+    moving: boolean;
+    activeCorner: string | null;
+    topLeft: Animated.ValueXY;
+    topRight: Animated.ValueXY;
+    bottomLeft: Animated.ValueXY;
+    bottomRight: Animated.ValueXY;
+    overlayPositions: string;
+}
+
+class CustomCrop extends Component<CustomCropProps, CustomCropState> {
+    private cornerValues: RectangleCoordinates;
+    private cornerHistory: { [key: string]: CornerHistoryEntry[] };
+    private cornerValuesBeforeGesture: { [key: string]: CornerCoordinate };
+    private panResponderTopLeft: any;
+    private panResponderTopRight: any;
+    private panResponderBottomLeft: any;
+    private panResponderBottomRight: any;
+
+    constructor(props: CustomCropProps) {
         super(props);
         const viewWidth = SCREEN_WIDTH;
         const viewHeight = viewWidth * (props.height / props.width);
@@ -36,6 +87,20 @@ class CustomCrop extends Component {
                 : { x: viewWidth - 100, y: viewHeight - 100 },
         };
 
+        this.cornerValues = initialCoords;
+        this.cornerHistory = {
+            topLeft: [],
+            topRight: [],
+            bottomLeft: [],
+            bottomRight: [],
+        };
+        this.cornerValuesBeforeGesture = {
+            topLeft: { x: 0, y: 0 },
+            topRight: { x: 0, y: 0 },
+            bottomLeft: { x: 0, y: 0 },
+            bottomRight: { x: 0, y: 0 },
+        };
+
         this.state = {
             viewHeight,
             viewWidth,
@@ -48,11 +113,8 @@ class CustomCrop extends Component {
             topRight: new Animated.ValueXY(initialCoords.topRight),
             bottomLeft: new Animated.ValueXY(initialCoords.bottomLeft),
             bottomRight: new Animated.ValueXY(initialCoords.bottomRight),
-            overlayPositions: '',
+            overlayPositions: this.getOverlayString(),
         };
-
-        this.cornerValues = initialCoords;
-        this.state.overlayPositions = this.getOverlayString();
 
         this.setupListeners();
 
@@ -63,17 +125,28 @@ class CustomCrop extends Component {
     }
 
     setupListeners() {
-        const corners = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+        const corners: (keyof RectangleCoordinates)[] = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
         corners.forEach(corner => {
-            this.state[corner].addListener((value) => {
+            this.state[corner].addListener((value: CornerCoordinate) => {
+                const now = Date.now();
                 this.cornerValues[corner] = value;
+                
+                // Track history for smoothing finger release
+                this.cornerHistory[corner].push({ ...value, timestamp: now });
+                
+                // Keep only last 200ms of history
+                const threshold = now - 200;
+                while (this.cornerHistory[corner].length > 0 && this.cornerHistory[corner][0].timestamp < threshold) {
+                    this.cornerHistory[corner].shift();
+                }
+
                 this.updateOverlayString();
             });
         });
     }
 
     componentWillUnmount() {
-        const corners = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+        const corners: (keyof RectangleCoordinates)[] = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
         corners.forEach(corner => {
             this.state[corner].removeAllListeners();
         });
@@ -84,26 +157,45 @@ class CustomCrop extends Component {
         return `${topLeft.x},${topLeft.y} ${topRight.x},${topRight.y} ${bottomRight.x},${bottomRight.y} ${bottomLeft.x},${bottomLeft.y}`;
     }
 
-    createPanResponser(corner, name) {
+    createPanResponser(corner: Animated.ValueXY, name: keyof RectangleCoordinates) {
         return PanResponder.create({
             onStartShouldSetPanResponder: () => true,
-            onPanResponderMove: Animated.event([
-                null,
-                {
-                    dx: corner.x,
-                    dy: corner.y,
-                },
-            ], { 
-                useNativeDriver: false,
-            }),
+            onPanResponderMove: (e, gestureState) => {
+                const initial = this.cornerValuesBeforeGesture[name];
+                corner.setValue({
+                    x: initial.x + gestureState.dx,
+                    y: initial.y + gestureState.dy,
+                });
+            },
             onPanResponderRelease: () => {
-                corner.flattenOffset();
+                const now = Date.now();
+                const history = this.cornerHistory[name];
+                const targetTimestamp = now - 100; // 0.1 seconds prior
+                
+                if (history && history.length > 0) {
+                    // Find the position closest to 100ms ago
+                    let bestEntry = history[0];
+                    let minDiff = Math.abs(bestEntry.timestamp - targetTimestamp);
+                    
+                    for (let i = 1; i < history.length; i++) {
+                        const diff = Math.abs(history[i].timestamp - targetTimestamp);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            bestEntry = history[i];
+                        }
+                    }
+                    
+                    // Revert to the point 0.1s ago
+                    corner.setValue({ x: bestEntry.x, y: bestEntry.y });
+                }
+
                 this.setState({ activeCorner: null });
             },
             onPanResponderGrant: () => {
-                const { x, y } = this.cornerValues[name];
-                corner.setOffset({ x, y });
-                corner.setValue({ x: 0, y: 0 });
+                // Save current position as start point for the gesture
+                this.cornerValuesBeforeGesture[name] = { ...this.cornerValues[name] };
+                // Clear history for new gesture
+                this.cornerHistory[name] = [];
                 this.setState({ activeCorner: name });
             },
         });
@@ -122,7 +214,7 @@ class CustomCrop extends Component {
         NativeModules.CustomCropManager.crop(
             coordinates,
             this.state.image,
-            (err, res) => {
+            (err: any, res: any) => {
                 if (res && res.image) {
                     this.props.updateImage(res.image, coordinates);
                 }
@@ -136,14 +228,14 @@ class CustomCrop extends Component {
         });
     }
 
-    imageCoordinatesToViewCoordinates(corner, viewWidth, viewHeight, width, height) {
+    imageCoordinatesToViewCoordinates(corner: CornerCoordinate, viewWidth: number, viewHeight: number, width: number, height: number) {
         return {
             x: (corner.x * viewWidth) / width,
             y: (corner.y * viewHeight) / height,
         };
     }
 
-    coordsToImageCoordinates(corner) {
+    coordsToImageCoordinates(corner: CornerCoordinate) {
         return {
             x: (corner.x / this.state.viewWidth) * this.state.width,
             y: (corner.y / this.state.viewHeight) * this.state.height
@@ -154,7 +246,7 @@ class CustomCrop extends Component {
         const { activeCorner, image, viewWidth, viewHeight } = this.state;
         if (!activeCorner) return null;
 
-        const { x, y } = this.cornerValues[activeCorner];
+        const { x, y } = this.cornerValues[activeCorner as keyof RectangleCoordinates];
 
         const magnifierSize = 120;
         const zoom = 2.5;
@@ -163,8 +255,13 @@ class CustomCrop extends Component {
         const imageLeft = -(x * zoom - magnifierSize / 2);
         const imageTop = -(y * zoom - magnifierSize / 2);
 
+        // Move magnifier to top-right if we're moving the top-left corner
+        const magnifierPosition = (activeCorner === 'topLeft') 
+            ? { top: 20, right: 20 } 
+            : { top: 20, left: 20 };
+
         return (
-            <View style={[styles.magnifierContainer, { top: 20, left: 20 }]}>
+            <View style={[styles.magnifierContainer, magnifierPosition]}>
                 <View style={styles.magnifierWindow}>
                     <Image
                         source={{ uri: image }}
