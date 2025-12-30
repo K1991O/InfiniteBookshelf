@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Image, FlatList, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styles } from './styles/Main';
 import { BookshelfOverlay } from './BookshelfOverlay';
 import { Book } from '../types/Book';
+import { SHELF_SPACING_RATIO } from './layoutConstants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -44,12 +45,36 @@ export function LibraryView({
   scrollProgress,
 }: LibraryViewProps) {
   const insets = useSafeAreaInsets();
-
+  const flatListRef = useRef<FlatList>(null);
 
   const [patternHeights, setPatternHeights] = useState<number[]>([
     700, 300, 300, 300, 300,
   ]);
   const [imageStyles, setImageStyles] = useState<any[]>([]);
+
+  const handleShelfChange = useCallback(
+    (shelfIndex: number) => {
+      if (shelfIndex > 0) {
+        const shelfSpacing = SHELF_SPACING_RATIO * SCREEN_WIDTH;
+        // Scroll to the shelf position. 
+        // We add a little bit of scroll to make sure the shelf is well visible.
+        // The first shelf is index 0. Second is index 1.
+        const scrollAmount = shelfIndex * shelfSpacing;
+        
+        flatListRef.current?.scrollToOffset({
+          offset: scrollAmount,
+          animated: true,
+        });
+      } else {
+        // For the first shelf, scroll back to top
+        flatListRef.current?.scrollToOffset({
+          offset: 0,
+          animated: true,
+        });
+      }
+    },
+    [],
+  );
 
   // Load image dimensions and calculate heights
   useEffect(() => {
@@ -155,6 +180,7 @@ export function LibraryView({
             selectedBookId={selectedBookId}
             onBooksReorder={onBooksReorder}
             scrollProgress={scrollProgress}
+            onShelfChange={handleShelfChange}
           />
         )}
       </View>
@@ -180,6 +206,7 @@ export function LibraryView({
   return (
     <View style={styles.container}>
       <FlatList
+        ref={flatListRef}
         data={generateItems(ITEM_COUNT)}
         renderItem={renderLibraryItem}
         keyExtractor={item => item.id}
