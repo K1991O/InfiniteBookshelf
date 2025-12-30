@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,10 @@ import {
   BackHandler,
   Platform,
   Dimensions,
+  Image,
 } from 'react-native';
-import CustomCrop from 'react-native-perspective-image-cropper';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
+import CustomCrop from './CustomCrop';
 import {styles} from './styles/BookDetailSheetStyles';
 
 const {width: SCREEN_WIDTH} = Dimensions.get('window');
@@ -30,9 +32,17 @@ export const SpineCropper = ({
   onCancel,
   cropperRef,
 }: SpineCropperProps) => {
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [lastCoordinates, setLastCoordinates] = useState<any>(null);
+  const insets = useSafeAreaInsets();
+
   useEffect(() => {
     if (Platform.OS === 'android' && visible) {
       const backAction = () => {
+        if (previewImage) {
+          setPreviewImage(null);
+          return true;
+        }
         onCancel();
         return true;
       };
@@ -42,12 +52,28 @@ export const SpineCropper = ({
       );
       return () => backHandler.remove();
     }
-  }, [visible, onCancel]);
+  }, [visible, onCancel, previewImage]);
 
   const handleCropButtonPress = () => {
     if (cropperRef.current) {
       cropperRef.current.crop();
     }
+  };
+
+  const handleCroppedImage = (base64Image: string, coordinates: any) => {
+    setPreviewImage(base64Image);
+    setLastCoordinates(coordinates);
+  };
+
+  const handleAccept = () => {
+    if (previewImage && lastCoordinates) {
+      onCrop(previewImage, lastCoordinates);
+      setPreviewImage(null);
+    }
+  };
+
+  const handleDecline = () => {
+    setPreviewImage(null);
   };
 
   // Ensure we have valid dimensions
@@ -85,7 +111,7 @@ export const SpineCropper = ({
                 y: imgHeight * 0.9,
               },
             }}
-            updateImage={onCrop}
+            updateImage={handleCroppedImage}
             overlayColor="rgba(255, 130, 0, 0.3)"
             overlayStrokeColor="rgba(255, 130, 0, 1)"
             handlerColor="rgba(255, 130, 0, 1)"
@@ -109,6 +135,33 @@ export const SpineCropper = ({
           <Text style={styles.cropperButtonText}>Crop</Text>
         </TouchableOpacity>
       </View>
+
+      {previewImage && (
+        <SafeAreaView style={styles.previewContainer} edges={['top', 'bottom']}>
+          <Image
+            source={{uri: `data:image/jpeg;base64,${previewImage}`}}
+            style={[
+              styles.previewImage,
+              {height: Dimensions.get('window').height * 0.7, marginBottom: 100},
+            ]}
+            resizeMode="contain"
+          />
+          <View style={styles.previewButtonsContainer}>
+            <TouchableOpacity
+              style={styles.declineButton}
+              onPress={handleDecline}
+              activeOpacity={0.7}>
+              <Text style={styles.cropperButtonText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.acceptButton}
+              onPress={handleAccept}
+              activeOpacity={0.7}>
+              <Text style={styles.cropperButtonText}>Accept</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      )}
     </Modal>
   );
 };

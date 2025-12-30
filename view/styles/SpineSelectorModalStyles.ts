@@ -5,7 +5,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 export const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'transparent',
         justifyContent: 'flex-end',
     },
     backdrop: {
@@ -52,7 +52,7 @@ export const styles = StyleSheet.create({
     spineImage: {
         width: '100%',
         height: '100%',
-        resizeMode: 'cover',
+        resizeMode: 'contain',
     },
     takePhotoButton: {
         width: 120,
