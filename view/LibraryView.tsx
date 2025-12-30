@@ -167,7 +167,11 @@ export function LibraryView({
     const shouldRenderOverlay = index === 0;
 
     return (
-      <View>
+      <View
+        style={{
+          zIndex: shouldRenderOverlay ? 1000 : 0,
+          elevation: shouldRenderOverlay ? 10 : 0, // Android-specific shadow/stacking
+        }}>
         <Image source={imageSource} style={itemStyle} resizeMode="cover" />
         {shouldRenderOverlay && (
           <BookshelfOverlay
