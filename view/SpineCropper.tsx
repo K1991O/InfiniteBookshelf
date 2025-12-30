@@ -1,7 +1,17 @@
-import React from 'react';
-import {View, Text, TouchableOpacity, Modal} from 'react-native';
+import React, {useEffect} from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Modal,
+  BackHandler,
+  Platform,
+  Dimensions,
+} from 'react-native';
 import CustomCrop from 'react-native-perspective-image-cropper';
 import {styles} from './styles/BookDetailSheetStyles';
+
+const {width: SCREEN_WIDTH} = Dimensions.get('window');
 
 interface SpineCropperProps {
   visible: boolean;
@@ -20,44 +30,68 @@ export const SpineCropper = ({
   onCancel,
   cropperRef,
 }: SpineCropperProps) => {
+  useEffect(() => {
+    if (Platform.OS === 'android' && visible) {
+      const backAction = () => {
+        onCancel();
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        backAction,
+      );
+      return () => backHandler.remove();
+    }
+  }, [visible, onCancel]);
+
   const handleCropButtonPress = () => {
     if (cropperRef.current) {
       cropperRef.current.crop();
     }
   };
 
+  // Ensure we have valid dimensions
+  const imgWidth = imageDimensions.width || SCREEN_WIDTH;
+  const imgHeight = imageDimensions.height || SCREEN_WIDTH;
+
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onCancel}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onCancel}
+      hardwareAccelerated>
       <View style={styles.cropperContainer}>
         <View style={styles.cropperImageWrapper}>
           <CustomCrop
             ref={cropperRef}
             initialImage={imageUri}
-            height={imageDimensions.height}
-            width={imageDimensions.width}
+            height={imgHeight}
+            width={imgWidth}
             rectangleCoordinates={{
               topLeft: {
-                x: imageDimensions.width * 0.1,
-                y: imageDimensions.height * 0.1,
+                x: imgWidth * 0.1,
+                y: imgHeight * 0.1,
               },
               topRight: {
-                x: imageDimensions.width * 0.9,
-                y: imageDimensions.height * 0.1,
+                x: imgWidth * 0.9,
+                y: imgHeight * 0.1,
               },
               bottomLeft: {
-                x: imageDimensions.width * 0.1,
-                y: imageDimensions.height * 0.9,
+                x: imgWidth * 0.1,
+                y: imgHeight * 0.9,
               },
               bottomRight: {
-                x: imageDimensions.width * 0.9,
-                y: imageDimensions.height * 0.9,
+                x: imgWidth * 0.9,
+                y: imgHeight * 0.9,
               },
             }}
             updateImage={onCrop}
-            overlayColor="rgba(255, 130, 0, 0.5)"
-            overlayStrokeColor="rgba(255, 255, 255, 0.9)"
+            overlayColor="rgba(255, 130, 0, 0.3)"
+            overlayStrokeColor="rgba(255, 130, 0, 1)"
             handlerColor="rgba(255, 130, 0, 1)"
-            overlayStrokeWidth={3}
+            handlerOuterColor="rgba(255, 130, 0, 0.1)"
+            borderColor="white"
+            overlayStrokeWidth={2}
           />
         </View>
       </View>

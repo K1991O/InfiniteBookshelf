@@ -8,7 +8,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import ImagePicker from 'react-native-image-crop-picker';
+import { launchCamera } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 import { Book } from '../types/Book';
 import { removeBook, updateBook } from '../services/bookStorage';
@@ -209,24 +209,34 @@ export function BookDetailSheet({
   const handleTakePhoto = async () => {
     setSelectorVisible(false);
     try {
-      const image = await ImagePicker.openCamera({
-        width: 2000,
-        height: 2000,
-        cropping: false,
+      const result = await launchCamera({
         mediaType: 'photo',
+        quality: 1,
+        includeBase64: false,
       });
-      if (image?.path) {
-        setImageDimensions({
-          width: image.width || SCREEN_WIDTH,
-          height: image.height || SCREEN_HEIGHT,
-        });
-        setImageUriToCrop(image.path);
-        setCropperVisible(true);
+
+      if (result.didCancel) {
+        return;
+      }
+
+      if (result.errorCode) {
+        Alert.alert('Error', result.errorMessage || 'Failed to take photo');
+        return;
+      }
+
+      if (result.assets && result.assets.length > 0) {
+        const image = result.assets[0];
+        if (image.uri) {
+          setImageDimensions({
+            width: image.width || SCREEN_WIDTH,
+            height: image.height || SCREEN_HEIGHT,
+          });
+          setImageUriToCrop(image.uri);
+          setCropperVisible(true);
+        }
       }
     } catch (error: any) {
-      if (error.message !== 'User cancelled image selection') {
-        Alert.alert('Error', 'Failed to take photo');
-      }
+      Alert.alert('Error', 'An unexpected error occurred');
     }
   };
 
@@ -299,8 +309,12 @@ export function BookDetailSheet({
               if (onBookUpdated) onBookUpdated();
             }
           }
-        } catch (uploadError) {
+        } catch (uploadError: any) {
           console.error('Background upload failed:', uploadError);
+          if (uploadError.message === 'Could not connect') {
+            // Optional: Show a subtle notification or toast that upload failed
+            // For now, just logging is fine as it's a background process
+          }
         }
       })();
     } catch (error) {
@@ -372,9 +386,13 @@ export function BookDetailSheet({
         alertButtons.push({ text: 'Cancel', style: 'cancel', onPress: () => { } });
         Alert.alert('Spine Image', 'No existing spines found. Take a new photo?', alertButtons);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching spines for selection:', error);
-      handleTakePhoto(); // Fallback to camera
+      if (error.message === 'Could not connect') {
+        Alert.alert('Error', 'Could not connect');
+      } else {
+        handleTakePhoto(); // Fallback to camera
+      }
     } finally {
       setIsFetchingSpines(false);
     }

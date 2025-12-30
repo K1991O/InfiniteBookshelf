@@ -78,6 +78,11 @@ export async function searchBooks(query: string): Promise<Book[]> {
         searchQuery,
       )}&key=${GOOGLE_CLOUD_KEY}`,
     );
+
+    if (!response.ok) {
+      throw new Error('Could not connect');
+    }
+
     const data: BooksSearchResponse = await response.json();
 
     if (!data.items) {
@@ -101,7 +106,7 @@ export async function searchBooks(query: string): Promise<Book[]> {
     }));
   } catch (error) {
     console.error('Error searching books:', error);
-    return [];
+    throw error;
   }
 }
 
@@ -109,9 +114,17 @@ export async function getBookDetails(
   bookId: string,
 ): Promise<BookDetails | null> {
   try {
+
+    console.log('Getting book details for:', GOOGLE_CLOUD_KEY);
+
     const response = await fetch(
       `${BASE_URL}/volumes/${bookId}?key=${GOOGLE_CLOUD_KEY}`,
     );
+
+    if (!response.ok) {
+      throw new Error('Could not connect');
+    }
+
     const data: BookDetailsResponse = await response.json();
 
     // Extract ISBN from industryIdentifiers
@@ -147,7 +160,7 @@ export async function getBookDetails(
     };
   } catch (error) {
     console.error('Error fetching book details:', error);
-    return null;
+    throw error;
   }
 }
 
@@ -192,7 +205,10 @@ export const convertToBook = (
 export async function fetchSpine(googleId: string): Promise<string[]> {
   try {
     const response = await fetch(`${SPINE_API_BASE_URL}/image/book/${googleId}`);
-    if (!response.ok) return [];
+    if (!response.ok) {
+      if (response.status === 404) return [];
+      throw new Error('Could not connect');
+    }
     const data = await response.json();
     if (Array.isArray(data)) {
       return data
@@ -202,7 +218,7 @@ export async function fetchSpine(googleId: string): Promise<string[]> {
     return [];
   } catch (error) {
     console.error('Error fetching spine:', error);
-    return [];
+    throw error;
   }
 }
 
@@ -233,10 +249,14 @@ export async function uploadSpine(
       },
     });
 
+    if (!response.ok) {
+      throw new Error('Could not connect');
+    }
+
     return response.ok;
   } catch (error) {
     console.error('Error uploading spine:', error);
-    return false;
+    throw error;
   }
 }
 

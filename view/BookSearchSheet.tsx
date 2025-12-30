@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import RNFS from 'react-native-fs';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
+import { GOOGLE_CLOUD_KEY, BASE_URL, SPINE_API_BASE_URL } from '@env';
 
 import {
   searchBooks,
@@ -157,13 +158,16 @@ export function BookSearchSheet({
           enableVibrateFallback: true,
           ignoreAndroidSystemSettings: false,
         });
+
+        const message =
+          error.message === 'Could not connect'
+            ? 'Could not connect'
+            : 'Error processing scan. Please try again.';
+
         if (Platform.OS === 'android') {
-          ToastAndroid.show(
-            'Error processing scan. Please try again.',
-            ToastAndroid.SHORT,
-          );
+          ToastAndroid.show(message, ToastAndroid.SHORT);
         } else {
-          Alert.alert('Error', 'Error processing scan. Please try again.');
+          Alert.alert('Error', message);
         }
       }
     } finally {
@@ -225,18 +229,20 @@ export function BookSearchSheet({
         const height = e.endCoordinates.height;
         const duration = Platform.OS === 'ios' ? e.duration : 250;
 
-        Animated.timing(keyboardAnim, {
-          toValue: -height,
-          duration: duration,
-          useNativeDriver: true,
-        }).start();
-
-        if (visible && Platform.OS === 'ios') {
-          Animated.timing(slideAnim, {
-            toValue: 0,
+        if (Platform.OS === 'ios') {
+          Animated.timing(keyboardAnim, {
+            toValue: -height,
             duration: duration,
             useNativeDriver: true,
           }).start();
+
+          if (visible) {
+            Animated.timing(slideAnim, {
+              toValue: 0,
+              duration: duration,
+              useNativeDriver: true,
+            }).start();
+          }
         }
       },
     );
@@ -246,13 +252,13 @@ export function BookSearchSheet({
       e => {
         const duration = Platform.OS === 'ios' ? e.duration : 250;
 
-        Animated.timing(keyboardAnim, {
-          toValue: 0,
-          duration: duration,
-          useNativeDriver: true,
-        }).start();
-
         if (Platform.OS === 'ios') {
+          Animated.timing(keyboardAnim, {
+            toValue: 0,
+            duration: duration,
+            useNativeDriver: true,
+          }).start();
+
           Animated.timing(slideAnim, {
             toValue: SCREEN_HEIGHT,
             duration: duration,
@@ -284,10 +290,23 @@ export function BookSearchSheet({
       return;
     }
 
-    setLoading(true);
-    const results = await searchBooks(query);
-    setBooks(results);
-    setLoading(false);
+    try {
+      setLoading(true);
+      const results = await searchBooks(query);
+      setBooks(results);
+    } catch (error: any) {
+      console.error('Error performing search:', error);
+      if (error.message === 'Could not connect') {
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Could not connect', ToastAndroid.SHORT);
+        } else {
+          Alert.alert('Error', 'Could not connect');
+        }
+      }
+      setBooks([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -345,13 +364,19 @@ export function BookSearchSheet({
           Alert.alert('Error', 'Failed to load book details');
         }, 300);
       }
-    } catch {
+    } catch (error: any) {
       setLoadingDetails(false);
       isHandlingBookPress.current = false;
       Keyboard.dismiss();
       onClose();
+
+      const message =
+        error.message === 'Could not connect'
+          ? 'Could not connect'
+          : 'Failed to load book details';
+
       setTimeout(() => {
-        Alert.alert('Error', 'Failed to load book details');
+        Alert.alert('Error', message);
       }, 300);
     }
   };
@@ -392,7 +417,6 @@ export function BookSearchSheet({
                 onCameraPress={handleCameraPress}
                 loading={loading || loadingDetails}
               />
-
               <FlatList
                 data={books}
                 renderItem={({ item }) => (
