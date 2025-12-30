@@ -1,5 +1,5 @@
 {
-  "name": "MyApp",
+  "name": "shelf52",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -19,9 +19,9 @@
     "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "^2.29.1",
     "react-native-haptic-feedback": "^2.3.3",
-    "react-native-image-crop-picker": "^0.51.1",
     "react-native-image-picker": "^8.2.1",
-    "react-native-perspective-image-cropper": "^0.4.4",
+    "react-native-perspective-image-cropper": "git+https://github.com/rosenexpend/react-native-perspective-image-cropper.git",
+    "react-native-image-size": "^1.1.5",
     "react-native-reanimated": "^4.2.1",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-sortables": "^1.9.4",

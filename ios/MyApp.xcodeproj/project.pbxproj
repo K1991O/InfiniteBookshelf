@@ -274,8 +274,8 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.boshi.52BS;
-				PRODUCT_NAME = MyApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.boshi.shelf52;
+				PRODUCT_NAME = Shelf52;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -302,8 +302,8 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.boshi.52BS;
-				PRODUCT_NAME = MyApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.boshi.shelf52;
+				PRODUCT_NAME = Shelf52;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
