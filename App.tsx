@@ -15,6 +15,7 @@ import { BottomTabBar } from './view/BottomTabBar';
 import { FloatingActionButton } from './view/FloatingActionButton';
 import { BookSearchSheet } from './view/BookSearchSheet';
 import { BookDetailSheet } from './view/BookDetailSheet';
+import { TierListSheet } from './view/TierListSheet';
 import { Book } from './types/Book';
 import {
   loadBooks,
@@ -27,6 +28,7 @@ import { userService } from './services/userService';
 
 function App() {
   const [isSearchSheetVisible, setIsSearchSheetVisible] = useState(false);
+  const [isTierListVisible, setIsTierListVisible] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [loadingBookCount, setLoadingBookCount] = useState(0);
   const [books, setBooks] = useState<Book[]>([]);
@@ -43,10 +45,12 @@ function App() {
   } = useScrollAnimation();
 
   // Load books from storage
-  const loadBooksFromStorage = useCallback(async () => {
+  const loadBooksFromStorage = useCallback(async (isInitial: boolean = false) => {
     try {
-      // First, update book thicknesses based on spine images (if needed)
-      await updateBooksWithSpineImageDimensions();
+      // Only update book thicknesses on initial load or if explicitly requested
+      if (isInitial) {
+        await updateBooksWithSpineImageDimensions();
+      }
 
       // Then load the books
       const savedBooks = await loadBooks();
@@ -56,9 +60,9 @@ function App() {
     }
   }, []);
 
-  // Load books on mount and when refreshTrigger changes
+  // Load books on mount
   useEffect(() => {
-    loadBooksFromStorage();
+    loadBooksFromStorage(true);
 
     // Log the persistent User ID for verification
     const fetchUserId = async () => {
@@ -66,7 +70,14 @@ function App() {
       console.log('Persistent Persistent User ID:', userId);
     };
     fetchUserId();
-  }, [loadBooksFromStorage, refreshTrigger]);
+  }, [loadBooksFromStorage]);
+
+  // Handle refresh separately to avoid re-checking all spine dimensions
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      loadBooksFromStorage(false);
+    }
+  }, [refreshTrigger, loadBooksFromStorage]);
 
 
   const handleBookAdded = useCallback(
@@ -107,15 +118,12 @@ function App() {
   );
 
   const handleBookChange = useCallback(
-    (_index: number) => {
-      // Index is passed from BookDetailSheet but we use scrollProgress to calculate currently selected book's index elsewhere
-      // However, we can use it to update selectedBookId if we want
-      const roundedIndex = Math.round(scrollProgress / Dimensions.get('window').width);
-      if (roundedIndex >= 0 && roundedIndex < books.length) {
-        setSelectedBookId(books[roundedIndex]?.id || null);
+    (index: number) => {
+      if (index >= 0 && index < books.length) {
+        setSelectedBookId(books[index]?.id || null);
       }
     },
-    [books, scrollProgress],
+    [books],
   );
 
   const handleDetailSheetClose = useCallback(() => {
@@ -190,7 +198,7 @@ function App() {
                   opacity: barOpacity,
                 },
               ]}>
-              <NavigationBar />
+              <NavigationBar onTierListPress={() => setIsTierListVisible(true)} />
             </Animated.View>
           </SafeAreaView>
           {/* Bottom tab bar that slides out */}
@@ -247,6 +255,13 @@ function App() {
             onBookDeleted={handleBookDeleted}
             onBookUpdated={handleBookUpdated}
             onScrollProgress={handleScrollProgress}
+          />
+          {/* Tier List Sheet */}
+          <TierListSheet
+            visible={isTierListVisible}
+            onClose={() => setIsTierListVisible(false)}
+            books={books}
+            onUpdate={handleBookUpdated}
           />
         </View>
       </SafeAreaProvider>

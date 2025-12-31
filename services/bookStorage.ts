@@ -5,6 +5,39 @@ import { resolveSpineImagePath } from './imageStorage';
 import RNFS from 'react-native-fs';
 
 const STORAGE_KEY = '@infinite_bookshelf:books';
+const TIER_CONFIG_KEY = '@infinite_bookshelf:tier_config';
+
+export interface TierConfig {
+  id: string;
+  label: string;
+  color: string;
+}
+
+export const DEFAULT_TIERS: TierConfig[] = [
+  { id: 'S', label: 'S', color: '#FF7F7F' },
+  { id: 'A', label: 'A', color: '#FFBF7F' },
+  { id: 'B', label: 'B', color: '#FFFF7F' },
+  { id: 'C', label: 'C', color: '#7FFF7F' },
+  { id: 'D', label: 'D', color: '#7F7FFF' },
+];
+
+export async function loadTierConfig(): Promise<TierConfig[]> {
+  try {
+    const config = await AsyncStorage.getItem(TIER_CONFIG_KEY);
+    return config ? JSON.parse(config) : DEFAULT_TIERS;
+  } catch (error) {
+    console.error('Error loading tier config:', error);
+    return DEFAULT_TIERS;
+  }
+}
+
+export async function saveTierConfig(config: TierConfig[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(TIER_CONFIG_KEY, JSON.stringify(config));
+  } catch (error) {
+    console.error('Error saving tier config:', error);
+  }
+}
 
 export async function saveBook(book: Book): Promise<string> {
   try {

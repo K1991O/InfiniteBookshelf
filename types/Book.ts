@@ -11,6 +11,7 @@ export interface Book {
   ISBN13?: string;
   spineThumbnail?: string;
   spineUploaded?: boolean;
+  ranking?: string; // e.g. "S", "A", "B", "C", "D"
 }
 
 export const SHELF_HEIGHT_CM = 40; // cm

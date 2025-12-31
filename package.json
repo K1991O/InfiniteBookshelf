@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-camera-roll/camera-roll": "^7.10.2",
     "@react-native/new-app-screen": "0.82.1",
     "react": "19.1.1",
     "react-native": "0.82.1",
@@ -20,12 +21,13 @@
     "react-native-gesture-handler": "^2.29.1",
     "react-native-haptic-feedback": "^2.3.3",
     "react-native-image-picker": "^8.2.1",
-    "react-native-perspective-image-cropper": "git+https://github.com/rosenexpend/react-native-perspective-image-cropper.git",
     "react-native-image-size": "^1.1.5",
+    "react-native-perspective-image-cropper": "git+https://github.com/rosenexpend/react-native-perspective-image-cropper.git",
     "react-native-reanimated": "^4.2.1",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-sortables": "^1.9.4",
     "react-native-svg": "^15.15.1",
+    "react-native-view-shot": "^4.0.3",
     "react-native-worklets": "^0.7.1"
   },
   "devDependencies": {

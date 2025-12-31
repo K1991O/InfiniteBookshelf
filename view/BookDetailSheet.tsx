@@ -7,11 +7,12 @@ import {
   Dimensions,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
 import { launchCamera } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 import { Book } from '../types/Book';
-import { removeBook, updateBook } from '../services/bookStorage';
+import { removeBook, updateBook, TierConfig, loadTierConfig } from '../services/bookStorage';
 import { saveSpineImage, deleteSpineImage, resolveSpineImagePath } from '../services/imageStorage';
 import { uploadSpine, fetchSpine } from '../services/booksApi';
 import { userService } from '../services/userService';
@@ -60,6 +61,20 @@ export function BookDetailSheet({
   const [availableSpines, setAvailableSpines] = useState<string[]>([]);
   const [isFetchingSpines, setIsFetchingSpines] = useState(false);
   const checkedGoogleIds = useRef<Set<string>>(new Set());
+  const [tierConfig, setTierConfig] = useState<TierConfig[]>([]);
+  const [localBooks, setLocalBooks] = useState<Book[]>(books);
+
+  useEffect(() => {
+    setLocalBooks(books);
+  }, [books]);
+
+  useEffect(() => {
+    const loadConfig = async () => {
+      const config = await loadTierConfig();
+      setTierConfig(config);
+    };
+    loadConfig();
+  }, [visible]);
 
 
   useEffect(() => {
@@ -90,7 +105,8 @@ export function BookDetailSheet({
             lastNotifiedIndex.current = currentBookIndex;
           }
         }, 50);
-      } else if (!isUserScrolling.current) {
+      } else if (currentBookIndex !== lastNotifiedIndex.current) {
+        // Only scroll if the index change came from outside (not from a swipe)
         scrollViewRef.current.scrollTo({
           x: currentBookIndex * SCREEN_WIDTH,
           animated: true,
@@ -208,6 +224,12 @@ export function BookDetailSheet({
 
   const handleTakePhoto = async () => {
     setSelectorVisible(false);
+
+    // On iOS, we need to wait for the modal to dismiss before opening the camera
+    if (Platform.OS === 'ios') {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
     try {
       const result = await launchCamera({
         mediaType: 'photo',
@@ -232,6 +254,12 @@ export function BookDetailSheet({
             height: image.height || SCREEN_HEIGHT,
           });
           setImageUriToCrop(image.uri);
+
+          // Give the camera UI time to fully dismiss on iOS
+          if (Platform.OS === 'ios') {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+
           setCropperVisible(true);
         }
       }
@@ -437,7 +465,7 @@ export function BookDetailSheet({
             snapToInterval={SCREEN_WIDTH}
             snapToAlignment="center"
             contentContainerStyle={styles.scrollContent}>
-            {books.map((book, index) => (
+            {localBooks.map((book, index) => (
               <BookDetailItem
                 key={book.id}
                 book={book}
@@ -445,6 +473,26 @@ export function BookDetailSheet({
                 currentIndex={currentBookIndex}
                 onAddSpineImage={handleAddSpineImage}
                 onDeleteBook={handleDeleteBook}
+                tierConfig={tierConfig}
+                onRankBook={(ranking) => {
+                  // 1. Update local state immediately for instant feedback
+                  const updatedBooks = localBooks.map(b => 
+                    b.id === book.id ? { ...b, ranking } : b
+                  );
+                  setLocalBooks(updatedBooks);
+
+                  // 2. Perform persistence and parent update in background
+                  (async () => {
+                    try {
+                      await updateBook({ ...book, ranking });
+                      if (onBookUpdated) onBookUpdated();
+                    } catch (error) {
+                      console.error('Error ranking book:', error);
+                      // Optionally: Revert local state on error
+                      setLocalBooks(books);
+                    }
+                  })();
+                }}
               />
             ))}
           </ScrollView>
