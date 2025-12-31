@@ -21,7 +21,12 @@ import { Platform, PermissionsAndroid } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_WIDTH = SCREEN_WIDTH * 0.9;
-const EXPORT_WIDTH = 1080;
+const TIER_LIST_EXPORT_WIDTH = 1000;
+const EXPORT_BOOK_WIDTH = 80;
+const EXPORT_BOOK_HEIGHT = 120;
+const EXPORT_GAP = 8;
+const EXPORT_PADDING = 10;
+const EXPORT_LABEL_WIDTH = 160;
 
 const PRESET_COLORS = [
   '#FF7F7F', '#FFBF7F', '#FFFF7F', '#7FFF7F', '#7F7FFF', 
@@ -184,6 +189,21 @@ export function TierListSheet({ visible, onClose, books, onUpdate }: TierListShe
   const shelfImageSource = Image.resolveAssetSource(shelfImage);
   const shelfImageHeight = (shelfImageSource.height / shelfImageSource.width) * SCREEN_WIDTH;
 
+  // Calculate dynamic heights for tiers in export
+  const availableWidthForBooks = TIER_LIST_EXPORT_WIDTH - EXPORT_LABEL_WIDTH - (EXPORT_PADDING * 2);
+  const booksPerRow = Math.floor((availableWidthForBooks + EXPORT_GAP) / (EXPORT_BOOK_WIDTH + EXPORT_GAP));
+  
+  const tierHeights = tierConfig.map(tier => {
+    const tierBooks = localBooks.filter(b => b.ranking === tier.id);
+    const rows = Math.max(1, Math.ceil(tierBooks.length / booksPerRow));
+    return rows * (EXPORT_BOOK_HEIGHT + EXPORT_GAP) - EXPORT_GAP + (EXPORT_PADDING * 2);
+  });
+
+  const totalTierHeight = tierHeights.reduce((sum, h) => sum + h, 0);
+  const shelfScale = totalTierHeight / shelfImageHeight;
+  const shelfExportWidth = SCREEN_WIDTH * shelfScale;
+  const finalExportWidth = TIER_LIST_EXPORT_WIDTH + shelfExportWidth;
+
   const handleExportImage = async () => {
     try {
       if (!viewShotRef.current) return;
@@ -218,7 +238,7 @@ export function TierListSheet({ visible, onClose, books, onUpdate }: TierListShe
       const uri = await captureRef(viewShotRef, {
         format: 'png',
         quality: 1,
-        width: EXPORT_WIDTH,
+        width: finalExportWidth,
       });
       
       await CameraRoll.save(uri, { type: 'photo' });
@@ -342,11 +362,31 @@ export function TierListSheet({ visible, onClose, books, onUpdate }: TierListShe
 
           {/* Hidden ViewShot for Export only */}
           <View style={{ position: 'absolute', left: -5000 }}>
-            <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }} style={{ backgroundColor: '#fff', width: EXPORT_WIDTH }}>
-              {/* Export Preview Header Area - Real Bookshelf */}
-              <View style={styles.headerExportSection}>
-                <View style={[styles.shelfScaleWrapper, { width: 500, height: shelfImageHeight * (500/SCREEN_WIDTH) }]}>
-                  <View style={{ transform: [{ scale: 500/SCREEN_WIDTH }], transformOrigin: 'top left' }}>
+            <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }} style={{ backgroundColor: '#1A1A18', width: finalExportWidth }}>
+              <View style={{ flexDirection: 'row' }}>
+                {/* Left Side: Tier List */}
+                <View style={{ width: TIER_LIST_EXPORT_WIDTH }}>
+                  {tierConfig.map((tier, index) => (
+                    <View key={tier.id} style={[styles.tierRowExport, { width: TIER_LIST_EXPORT_WIDTH, height: tierHeights[index] }]}>
+                      <View style={[styles.tierLabel, { backgroundColor: tier.color, width: EXPORT_LABEL_WIDTH }]}>
+                        <Text style={[styles.tierLabelText, { fontSize: 32 }]}>{tier.label}</Text>
+                      </View>
+                      <View style={[styles.tierBooks, { padding: EXPORT_PADDING, gap: EXPORT_GAP }]}>
+                        {localBooks.filter(b => b.ranking === tier.id).map(book => (
+                          <Image
+                            key={book.id}
+                            source={{ uri: book.smallThumbnail }}
+                            style={[styles.bookThumbnail, { width: EXPORT_BOOK_WIDTH, height: EXPORT_BOOK_HEIGHT }]}
+                          />
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Right Side: Scaled Bookshelf */}
+                <View style={{ width: shelfExportWidth, height: totalTierHeight, overflow: 'hidden' }}>
+                  <View style={{ transform: [{ scale: shelfScale }], transformOrigin: 'top left' }}>
                     <View style={[styles.realShelfContainer, { height: shelfImageHeight }]}>
                       <Image 
                         source={shelfImage} 
@@ -363,29 +403,19 @@ export function TierListSheet({ visible, onClose, books, onUpdate }: TierListShe
                     </View>
                   </View>
                 </View>
-                <View style={styles.headerTitleSection}>
-                  <Text style={styles.tierListTitle}>2025</Text>
-                  <Text style={styles.tierListSubTitle}>Book Tier List</Text>
-                  <Text style={styles.statsText}>{rankedBooks.length} Books Ranked</Text>
-                </View>
               </View>
 
-              {tierConfig.map((tier) => (
-                <View key={tier.id} style={[styles.tierRow, { width: EXPORT_WIDTH }]}>
-                  <View style={[styles.tierLabel, { backgroundColor: tier.color, width: 120 }]}>
-                    <Text style={[styles.tierLabelText, { fontSize: 24 }]}>{tier.label}</Text>
-                  </View>
-                  <View style={styles.tierBooks}>
-                    {localBooks.filter(b => b.ranking === tier.id).map(book => (
-                      <Image
-                        key={book.id}
-                        source={{ uri: book.smallThumbnail }}
-                        style={[styles.bookThumbnail, { width: 60, height: 90 }]}
-                      />
-                    ))}
-                  </View>
+              {/* Bottom: Stats Text (Subscript) */}
+              <View style={styles.footerExportSection}>
+                <Text style={styles.statsTextExport}>{rankedBooks.length} Books Ranked</Text>
+                <View style={styles.brandingExport}>
+                  <Image 
+                    source={require('../assets/1024x1024.png')} 
+                    style={styles.appIconExport}
+                  />
+                  <Text style={styles.appNameExport}>Shelf52</Text>
                 </View>
-              ))}
+              </View>
             </ViewShot>
           </View>
           
@@ -454,42 +484,46 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#000',
   },
-  headerExportSection: {
+  footerExportSection: {
+    padding: 32,
     flexDirection: 'row',
-    padding: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+    backgroundColor: '#1A1A18',
   },
-  shelfScaleWrapper: {
-    width: SCREEN_WIDTH * 0.5,
-    overflow: 'hidden',
-  },
-  headerTitleSection: {
-    flex: 1,
-    paddingLeft: 20,
-    justifyContent: 'center',
-  },
-  tierListTitle: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  tierListSubTitle: {
-    fontSize: 18,
-    color: '#666',
-    marginTop: -4,
-  },
-  statsText: {
-    fontSize: 14,
+  statsTextExport: {
+    fontSize: 24,
     color: '#999',
-    marginTop: 8,
+    fontWeight: '600',
+  },
+  brandingExport: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  appIconExport: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+  },
+  appNameExport: {
+    fontSize: 28,
+    color: '#FFF',
+    fontWeight: 'bold',
+    letterSpacing: -0.5,
   },
   tierRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#EEE',
+    minHeight: 80,
+  },
+  tierRowExport: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#10110E',
     minHeight: 80,
   },
   tierLabel: {
