@@ -275,7 +275,7 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.boshi.shelf52;
-				PRODUCT_NAME = Shelf52;
+				PRODUCT_NAME = Shelfless;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -303,7 +303,7 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.boshi.shelf52;
-				PRODUCT_NAME = Shelf52;
+				PRODUCT_NAME = Shelfless;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 			};

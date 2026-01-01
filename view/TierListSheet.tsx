@@ -413,7 +413,7 @@ export function TierListSheet({ visible, onClose, books, onUpdate }: TierListShe
                     source={require('../assets/1024x1024.png')} 
                     style={styles.appIconExport}
                   />
-                  <Text style={styles.appNameExport}>Shelf52</Text>
+                  <Text style={styles.appNameExport}>Shelfless</Text>
                 </View>
               </View>
             </ViewShot>

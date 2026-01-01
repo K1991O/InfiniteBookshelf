@@ -1,6 +1,7 @@
 import { Alert, Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadBooks } from './bookStorage';
+// import { APP_STORE_ID, ANDROID_PACKAGE_NAME } from '@env';
 
 const RATING_PROMPTED_KEY = '@infinite_bookshelf:rating_prompted';
 
@@ -40,7 +41,7 @@ export async function checkAndPromptRating() {
       hasPromptedThisSession = true;
 
       Alert.alert(
-        'Enjoying Shelf52?',
+        'Enjoying Shelfless?',
         "It looks like you've added 5 books with spines to your shelf! We'd love to hear from you. It would help us a lot if you could give us a 5-star rating on the App Store.",
         [
           {

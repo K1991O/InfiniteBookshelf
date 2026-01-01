@@ -80,7 +80,7 @@ open MyApp.xcworkspace
 
 Then in Xcode:
 
-1. Select **Shelf52** → **Signing & Capabilities**
+1. Select **Shelfless** → **Signing & Capabilities**
 2. Enable **Automatically manage signing**
 3. Select your Apple ID team
 

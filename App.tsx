@@ -16,6 +16,7 @@ import { FloatingActionButton } from './view/FloatingActionButton';
 import { BookSearchSheet } from './view/BookSearchSheet';
 import { BookDetailSheet } from './view/BookDetailSheet';
 import { TierListSheet } from './view/TierListSheet';
+import { SplashScreen } from './view/SplashScreen';
 import { Book } from './types/Book';
 import {
   loadBooks,
@@ -27,6 +28,7 @@ import { userService } from './services/userService';
 
 
 function App() {
+  const [showSplash, setShowSplash] = useState(true);
   const [isSearchSheetVisible, setIsSearchSheetVisible] = useState(false);
   const [isTierListVisible, setIsTierListVisible] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -263,6 +265,10 @@ function App() {
             onUpdate={handleBookUpdated}
           />
         </View>
+
+        {showSplash && (
+          <SplashScreen onAnimationComplete={() => setShowSplash(false)} />
+        )}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
