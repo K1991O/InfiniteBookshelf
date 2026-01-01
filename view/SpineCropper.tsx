@@ -80,6 +80,10 @@ export const SpineCropper = ({
   const imgWidth = imageDimensions.width || SCREEN_WIDTH;
   const imgHeight = imageDimensions.height || SCREEN_WIDTH;
 
+  // Calculate 50px margin in image coordinates to avoid Android edge gestures
+  const viewWidth = SCREEN_WIDTH;
+  const pixelMargin = (50 * imgWidth) / viewWidth;
+
   return (
     <Modal
       visible={visible}
@@ -95,19 +99,19 @@ export const SpineCropper = ({
             width={imgWidth}
             rectangleCoordinates={{
               topLeft: {
-                x: imgWidth * 0.1,
+                x: (imgWidth * 0.1) + pixelMargin,
                 y: imgHeight * 0.1,
               },
               topRight: {
-                x: imgWidth * 0.9,
+                x: (imgWidth * 0.9) - pixelMargin,
                 y: imgHeight * 0.1,
               },
               bottomLeft: {
-                x: imgWidth * 0.1,
+                x: (imgWidth * 0.1) + pixelMargin,
                 y: imgHeight * 0.9,
               },
               bottomRight: {
-                x: imgWidth * 0.9,
+                x: (imgWidth * 0.9) - pixelMargin,
                 y: imgHeight * 0.9,
               },
             }}
