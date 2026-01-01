@@ -25,6 +25,7 @@
     "react-native-perspective-image-cropper": "git+https://github.com/rosenexpend/react-native-perspective-image-cropper.git",
     "react-native-reanimated": "^4.2.1",
     "react-native-safe-area-context": "^5.5.2",
+    "react-native-share": "^12.2.1",
     "react-native-sortables": "^1.9.4",
     "react-native-svg": "^15.15.1",
     "react-native-view-shot": "^4.0.3",

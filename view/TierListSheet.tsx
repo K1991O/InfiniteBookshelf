@@ -12,12 +12,13 @@ import {
   Alert,
   TextInput,
 } from 'react-native';
+import Share from 'react-native-share';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Book } from '../types/Book';
 import { updateBook, TierConfig, loadTierConfig, saveTierConfig, DEFAULT_TIERS } from '../services/bookStorage';
 import ViewShot, { captureRef } from 'react-native-view-shot';
-import { CameraRoll, iosRequestAddOnlyGalleryPermission } from "@react-native-camera-roll/camera-roll";
 import { BookshelfOverlay } from './BookshelfOverlay';
-import { Platform, PermissionsAndroid } from 'react-native';
+import { Platform } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_WIDTH = SCREEN_WIDTH * 0.9;
@@ -41,6 +42,7 @@ interface TierListSheetProps {
 }
 
 export function TierListSheet({ visible, onClose, books, onUpdate }: TierListSheetProps) {
+  const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(-SHEET_WIDTH)).current;
   const viewShotRef = useRef<any>(null);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
@@ -208,46 +210,29 @@ export function TierListSheet({ visible, onClose, books, onUpdate }: TierListShe
     try {
       if (!viewShotRef.current) return;
       
-      // Request permission based on platform
-      if (Platform.OS === 'ios') {
-        const status = await iosRequestAddOnlyGalleryPermission();
-        if (status !== 'granted' && status !== 'limited') {
-          Alert.alert('Permission Denied', 'We need permission to save images to your gallery.');
-          return;
-        }
-      } else if (Platform.OS === 'android') {
-        if (Platform.Version >= 33) {
-          const status = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-          );
-          if (status !== PermissionsAndroid.RESULTS.GRANTED) {
-            Alert.alert('Permission Denied', 'We need permission to save images to your gallery.');
-            return;
-          }
-        } else {
-          const status = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE
-          );
-          if (status !== PermissionsAndroid.RESULTS.GRANTED) {
-            Alert.alert('Permission Denied', 'We need permission to save images to your gallery.');
-            return;
-          }
-        }
-      }
-
       const uri = await captureRef(viewShotRef, {
         format: 'png',
         quality: 1,
         width: finalExportWidth,
       });
       
-      await CameraRoll.save(uri, { type: 'photo' });
+      const shareOptions = {
+        title: 'Share Tier List',
+        url: Platform.OS === 'android' ? `file://${uri}` : uri,
+        type: 'image/png',
+        failOnCancel: false,
+      };
+
+      await Share.open(shareOptions);
       
-      Alert.alert('Export Success', 'Tier list has been saved to your gallery!');
-      console.log('Capture saved to gallery:', uri);
-    } catch (error) {
-      console.error('Capture or Save failed:', error);
-      Alert.alert('Export Failed', 'Could not save the tier list to your gallery.');
+      console.log('Capture shared:', uri);
+    } catch (error: any) {
+      if (error && error.message && error.message.includes('User did not share')) {
+        // User cancelled, do nothing
+        return;
+      }
+      console.error('Capture or Share failed:', error);
+      Alert.alert('Export Failed', 'Could not share the tier list.');
     }
   };
 
@@ -269,6 +254,7 @@ export function TierListSheet({ visible, onClose, books, onUpdate }: TierListShe
             styles.sheet,
             {
               transform: [{ translateX: slideAnim }],
+              paddingTop: insets.top,
             },
           ]}
         >
@@ -419,12 +405,14 @@ export function TierListSheet({ visible, onClose, books, onUpdate }: TierListShe
             </ViewShot>
           </View>
           
-          <TouchableOpacity 
-            style={styles.exportButton}
-            onPress={handleExportImage}
-          >
-            <Text style={styles.exportButtonText}>Export Image</Text>
-          </TouchableOpacity>
+          <View style={{ paddingBottom: Math.max(insets.bottom, 20) }}>
+            <TouchableOpacity 
+              style={styles.exportButton}
+              onPress={handleExportImage}
+            >
+              <Text style={styles.exportButtonText}>Share Image</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
         {renderTierPicker()}
       </View>
@@ -449,7 +437,6 @@ const styles = StyleSheet.create({
     width: SHEET_WIDTH,
     height: SCREEN_HEIGHT,
     backgroundColor: '#fff',
-    paddingTop: 60,
     shadowColor: '#000',
     shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.25,
@@ -620,7 +607,9 @@ const styles = StyleSheet.create({
   },
   exportButton: {
     backgroundColor: '#000',
-    margin: 20,
+    marginHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 0,
     padding: 15,
     borderRadius: 10,
     alignItems: 'center',
