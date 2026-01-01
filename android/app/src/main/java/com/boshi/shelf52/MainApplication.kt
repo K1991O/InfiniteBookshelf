@@ -22,6 +22,7 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    // com.quickbirdstudios:opencv handles loading automatically
     loadReactNative(this)
   }
 }

@@ -211,15 +211,35 @@ class CustomCrop extends Component<CustomCropProps, CustomCropState> {
             height: this.state.height,
             width: this.state.width,
         };
-        NativeModules.CustomCropManager.crop(
-            coordinates,
-            this.state.image,
-            (err: any, res: any) => {
-                if (res && res.image) {
-                    this.props.updateImage(res.image, coordinates);
-                }
-            },
-        );
+
+        console.log('CustomCrop.crop: Starting crop with coordinates:', JSON.stringify(coordinates, null, 2));
+        console.log('CustomCrop.crop: Image URI:', this.state.image);
+
+        if (!this.state.image) {
+            console.error('CustomCrop.crop: No image URI provided!');
+            return;
+        }
+
+        try {
+            NativeModules.CustomCropManager.crop(
+                coordinates,
+                this.state.image,
+                (err: any, res: any) => {
+                    if (err) {
+                        console.error('CustomCrop.crop: Native error:', err);
+                        return;
+                    }
+                    if (res && res.image) {
+                        console.log('CustomCrop.crop: Crop successful');
+                        this.props.updateImage(res.image, coordinates);
+                    } else {
+                        console.warn('CustomCrop.crop: No image in response', res);
+                    }
+                },
+            );
+        } catch (e) {
+            console.error('CustomCrop.crop: Caught exception during native call:', e);
+        }
     }
 
     updateOverlayString() {
