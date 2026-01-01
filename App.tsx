@@ -16,6 +16,7 @@ import { FloatingActionButton } from './view/FloatingActionButton';
 import { BookSearchSheet } from './view/BookSearchSheet';
 import { BookDetailSheet } from './view/BookDetailSheet';
 import { TierListSheet } from './view/TierListSheet';
+import { SettingsSheet } from './view/SettingsSheet';
 import { SplashScreen } from './view/SplashScreen';
 import { Book } from './types/Book';
 import {
@@ -31,6 +32,7 @@ function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isSearchSheetVisible, setIsSearchSheetVisible] = useState(false);
   const [isTierListVisible, setIsTierListVisible] = useState(false);
+  const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [loadingBookCount, setLoadingBookCount] = useState(0);
   const [books, setBooks] = useState<Book[]>([]);
@@ -49,14 +51,19 @@ function App() {
   // Load books from storage
   const loadBooksFromStorage = useCallback(async (isInitial: boolean = false) => {
     try {
-      // Only update book thicknesses on initial load or if explicitly requested
-      if (isInitial) {
-        await updateBooksWithSpineImageDimensions();
-      }
-
-      // Then load the books
+      // Load the books first so they appear immediately
       const savedBooks = await loadBooks();
       setBooks(savedBooks);
+
+      // Then update book thicknesses in the background on initial load
+      if (isInitial) {
+        // Run in background without awaiting to keep startup fast
+        updateBooksWithSpineImageDimensions().then(async () => {
+          // If thicknesses changed, reload books to update UI
+          const refreshedBooks = await loadBooks();
+          setBooks(refreshedBooks);
+        });
+      }
     } catch (error) {
       console.error('Error loading books:', error);
     }
@@ -199,7 +206,10 @@ function App() {
                   opacity: barOpacity,
                 },
               ]}>
-              <NavigationBar onTierListPress={() => setIsTierListVisible(true)} />
+              <NavigationBar 
+                onTierListPress={() => setIsTierListVisible(true)} 
+                onSettingsPress={() => setIsSettingsVisible(true)}
+              />
             </Animated.View>
           </SafeAreaView>
           {/* Bottom tab bar that slides out */}
@@ -263,6 +273,11 @@ function App() {
             onClose={() => setIsTierListVisible(false)}
             books={books}
             onUpdate={handleBookUpdated}
+          />
+          {/* Settings Sheet */}
+          <SettingsSheet
+            visible={isSettingsVisible}
+            onClose={() => setIsSettingsVisible(false)}
           />
         </View>
 

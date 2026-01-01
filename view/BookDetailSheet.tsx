@@ -12,11 +12,18 @@ import {
 import { launchCamera } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 import { Book } from '../types/Book';
-import { removeBook, updateBook, TierConfig, loadTierConfig } from '../services/bookStorage';
+import {
+  removeBook,
+  updateBook,
+  TierConfig,
+  loadTierConfig,
+  calculateThicknessFromImage,
+} from '../services/bookStorage';
 import { saveSpineImage, deleteSpineImage, resolveSpineImagePath } from '../services/imageStorage';
 import { uploadSpine, fetchSpine } from '../services/booksApi';
 import { userService } from '../services/userService';
 import { checkAndPromptRating } from '../services/ratingService';
+import { settingsService } from '../services/settingsService';
 
 import { BookDetailItem } from './BookDetailItem';
 import { SpineCropper } from './SpineCropper';
@@ -132,6 +139,14 @@ export function BookDetailSheet({
     if (currentBook.spineThumbnail || checkedGoogleIds.current.has(currentBook.googleId)) return;
 
     const checkSpines = async () => {
+      // Only auto-check if user has opted in to sharing
+      const hasPrompted = await settingsService.hasPromptedSpineSharing();
+      const isSharingEnabled = await settingsService.isSpineSharingEnabled();
+
+      if (!hasPrompted || !isSharingEnabled) {
+        return;
+      }
+
       checkedGoogleIds.current.add(currentBook.googleId);
       setIsFetchingSpines(true);
       try {
@@ -209,9 +224,12 @@ export function BookDetailSheet({
           await deleteSpineImage(currentBook.spineThumbnail);
         }
 
+        const calculatedThickness = await calculateThicknessFromImage(savedPath, currentBook.height);
+
         await updateBook({
           ...currentBook,
           spineThumbnail: savedPath,
+          thickness: calculatedThickness || currentBook.thickness,
           spineUploaded: true, // It's from the server
         });
 
@@ -230,7 +248,7 @@ export function BookDetailSheet({
 
     // On iOS, we need to wait for the modal to dismiss before opening the camera
     if (Platform.OS === 'ios') {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 500));
     }
 
     try {
@@ -260,7 +278,7 @@ export function BookDetailSheet({
 
           // Give the camera UI time to fully dismiss on iOS
           if (Platform.OS === 'ios') {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise<void>(resolve => setTimeout(() => resolve(), 500));
           }
 
           setCropperVisible(true);
@@ -324,6 +342,13 @@ export function BookDetailSheet({
       // Background upload
       (async () => {
         try {
+          // Check if sharing is enabled
+          const isSharingEnabled = await settingsService.isSpineSharingEnabled();
+          if (!isSharingEnabled) {
+            console.log('Spine sharing is disabled, skipping background upload');
+            return;
+          }
+
           const userId = await userService.getPersistentUserId();
           const resolvedPath = resolveSpineImagePath(savedImagePath);
           if (resolvedPath) {
@@ -385,6 +410,69 @@ export function BookDetailSheet({
   const handleAddSpineImage = async () => {
     if (currentBookIndex < 0 || currentBookIndex >= books.length) return;
     const currentBook = books[currentBookIndex];
+
+    // Check privacy setting
+    const hasPrompted = await settingsService.hasPromptedSpineSharing();
+    let isSharingEnabled = await settingsService.isSpineSharingEnabled();
+
+    if (!hasPrompted) {
+      // Prompt on first "add" action
+      isSharingEnabled = await new Promise<boolean>((resolve) => {
+        Alert.alert(
+          'Community Spine Library',
+          'Would you like to share your book spines with the community? By sharing, you also get access to spines uploaded by others. This helps everyone build a better library!',
+          [
+            {
+              text: 'No thanks',
+              onPress: async () => {
+                await settingsService.setSpineSharingEnabled(false);
+                await settingsService.setHasPromptedSpineSharing();
+                resolve(false);
+              },
+              style: 'cancel',
+            },
+            {
+              text: 'Share and Join',
+              onPress: async () => {
+                await settingsService.setSpineSharingEnabled(true);
+                await settingsService.setHasPromptedSpineSharing();
+                resolve(true);
+              },
+            },
+          ],
+          { cancelable: false },
+        );
+      });
+    }
+
+    if (!isSharingEnabled) {
+      // If sharing is disabled, skip fetching from server and go straight to camera options
+      const alertButtons: any[] = [
+        {
+          text: 'Take Photo',
+          onPress: handleTakePhoto,
+        },
+      ];
+
+      if (currentBook.spineThumbnail) {
+        alertButtons.push({
+          text: 'Remove Spine Image',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteSpineImage(currentBook.spineThumbnail!);
+              await updateBook({ ...currentBook, spineThumbnail: undefined });
+              if (onBookUpdated) onBookUpdated();
+            } catch {
+              Alert.alert('Error', 'Failed to remove spine image');
+            }
+          },
+        });
+      }
+      alertButtons.push({ text: 'Cancel', style: 'cancel', onPress: () => { } });
+      Alert.alert('Spine Image', 'Community library access requires sharing. Take a photo instead?', alertButtons);
+      return;
+    }
 
     setIsFetchingSpines(true);
     try {

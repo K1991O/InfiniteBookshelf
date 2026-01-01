@@ -24,9 +24,15 @@ import {
   convertToBook,
   fetchSpine,
 } from '../services/booksApi';
-import { saveBook, updateBook, getBookById } from '../services/bookStorage';
+import {
+  saveBook,
+  updateBook,
+  getBookById,
+  calculateThicknessFromImage,
+} from '../services/bookStorage';
 import { saveSpineImage } from '../services/imageStorage';
 import { checkAndPromptRating } from '../services/ratingService';
+import { settingsService } from '../services/settingsService';
 
 import { BarcodeScanner } from './BarcodeScanner';
 import { SearchBar } from './SearchBar';
@@ -64,6 +70,14 @@ export function BookSearchSheet({
 
   const fetchAndProcessSpine = async (googleId: string, internalBookId: string) => {
     try {
+      // Only auto-fetch if user has opted in to sharing
+      const hasPrompted = await settingsService.hasPromptedSpineSharing();
+      const isSharingEnabled = await settingsService.isSpineSharingEnabled();
+
+      if (!hasPrompted || !isSharingEnabled) {
+        return undefined;
+      }
+
       const spineUrls = await fetchSpine(googleId);
       if (spineUrls.length === 1) {
         const spineUrl = spineUrls[0];
@@ -118,15 +132,17 @@ export function BookSearchSheet({
           // Try to fetch spine after saving the book
           const spinePath = await fetchAndProcessSpine(book.id, savedBookId);
           if (spinePath) {
-            const savedBook = await getBookById(savedBookId);
-            if (savedBook) {
-              await updateBook({
-                ...savedBook,
-                spineThumbnail: spinePath,
-                spineUploaded: true, // It came from server, so it's already "uploaded" in a sense, or at least synced
-              });
-              checkAndPromptRating();
-            }
+          const savedBook = await getBookById(savedBookId);
+          if (savedBook) {
+            const calculatedThickness = await calculateThicknessFromImage(spinePath, savedBook.height);
+            await updateBook({
+              ...savedBook,
+              spineThumbnail: spinePath,
+              thickness: calculatedThickness || savedBook.thickness,
+              spineUploaded: true, // It came from server, so it's already "uploaded" in a sense, or at least synced
+            });
+            checkAndPromptRating();
+          }
           }
 
           ReactNativeHapticFeedback.trigger('notificationSuccess', {
@@ -345,9 +361,11 @@ export function BookSearchSheet({
         if (spinePath) {
           const savedBook = await getBookById(savedBookId);
           if (savedBook) {
+            const calculatedThickness = await calculateThicknessFromImage(spinePath, savedBook.height);
             await updateBook({
               ...savedBook,
               spineThumbnail: spinePath,
+              thickness: calculatedThickness || savedBook.thickness,
               spineUploaded: true,
             });
             checkAndPromptRating();

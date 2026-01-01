@@ -144,8 +144,37 @@ export async function getBookById(bookId: string): Promise<Book | undefined> {
 
 
 /**
+ * Calculates the appropriate thickness for a book based on its spine image's aspect ratio.
+ */
+export async function calculateThicknessFromImage(
+  imagePath: string,
+  bookHeight: number,
+): Promise<number | null> {
+  try {
+    const resolvedPath = resolveSpineImagePath(imagePath);
+    if (!resolvedPath) return null;
+
+    const { width, height } = await new Promise<{
+      width: number;
+      height: number;
+    }>((resolve, reject) => {
+      Image.getSize(
+        resolvedPath,
+        (w, h) => resolve({ width: w, height: h }),
+        error => reject(error),
+      );
+    });
+
+    const aspectRatio = width / height;
+    return aspectRatio * bookHeight;
+  } catch (error) {
+    console.error('Error calculating thickness from image:', error);
+    return null;
+  }
+}
+
+/**
  * Updates book thickness for all books with spine images to match the image aspect ratio
- * This ensures the spine dimensions match the actual spine image proportions
  */
 export async function updateBooksWithSpineImageDimensions(): Promise<void> {
   try {
@@ -154,70 +183,28 @@ export async function updateBooksWithSpineImageDimensions(): Promise<void> {
 
     const updatedBooks = await Promise.all(
       books.map(async book => {
-        // Skip books without spine images
-        if (!book.spineThumbnail) {
-          return book;
+        if (!book.spineThumbnail) return book;
+
+        const calculatedThickness = await calculateThicknessFromImage(
+          book.spineThumbnail,
+          book.height,
+        );
+
+        if (
+          calculatedThickness !== null &&
+          Math.abs(calculatedThickness - book.thickness) > 0.1
+        ) {
+          hasChanges = true;
+          return { ...book, thickness: calculatedThickness };
         }
-
-        try {
-          // Get the actual image dimensions
-          const resolvedPath = resolveSpineImagePath(book.spineThumbnail);
-          if (!resolvedPath) return book;
-
-          const { width, height } = await new Promise<{
-            width: number;
-            height: number;
-          }>((resolve, reject) => {
-            Image.getSize(
-              resolvedPath,
-              (width, height) => resolve({ width, height }),
-              error => reject(error),
-            );
-          });
-
-          // Calculate aspect ratio (width/height of spine image)
-          const aspectRatio = width / height;
-
-          // Calculate what the thickness should be based on the image aspect ratio
-          const calculatedThickness = aspectRatio * book.height;
-
-          // Only update if the thickness differs significantly (more than 0.1cm)
-          if (Math.abs(calculatedThickness - book.thickness) > 0.1) {
-            console.log(`📐 Updating thickness for "${book.title}":`, {
-              oldThickness: book.thickness,
-              newThickness: calculatedThickness,
-              imageAspectRatio: aspectRatio,
-              bookHeight: book.height,
-            });
-
-            hasChanges = true;
-            return {
-              ...book,
-              thickness: calculatedThickness,
-            };
-          }
-
-          return book;
-        } catch (error) {
-          console.error(
-            `Error getting dimensions for spine image of "${book.title}":`,
-            error,
-          );
-          // Return the book unchanged if we can't get dimensions
-          return book;
-        }
+        return book;
       }),
     );
 
-    // Only save if there were actual changes
     if (hasChanges) {
       await saveBooks(updatedBooks);
-      console.log(
-        '✅ Book thicknesses updated based on spine image dimensions',
-      );
     }
   } catch (error) {
     console.error('Error updating books with spine image dimensions:', error);
-    // Don't throw - we don't want to break app startup if this fails
   }
 }
