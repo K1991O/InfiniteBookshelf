@@ -4,6 +4,9 @@ import { loadBooks } from './bookStorage';
 
 const RATING_PROMPTED_KEY = '@infinite_bookshelf:rating_prompted';
 
+// Session flag to prevent multiple prompts in a single app session
+let hasPromptedThisSession = false;
+
 // Replace with your actual App Store ID and Package Name
 const APP_STORE_ID = '6741481514'; 
 const ANDROID_PACKAGE_NAME = 'com.shelf52.infinitebookshelf';
@@ -14,7 +17,12 @@ const ANDROID_PACKAGE_NAME = 'com.shelf52.infinitebookshelf';
  */
 export async function checkAndPromptRating() {
   try {
-    // Check if user has already been prompted
+    // Check if user has already been prompted in this session
+    if (hasPromptedThisSession) {
+      return;
+    }
+
+    // Check if user has already been prompted permanently
     const hasBeenPrompted = await AsyncStorage.getItem(RATING_PROMPTED_KEY);
     if (hasBeenPrompted === 'true') {
       return;
@@ -27,6 +35,10 @@ export async function checkAndPromptRating() {
     console.log(`Rating check: ${booksWithSpines.length} books with spines found.`);
 
     if (booksWithSpines.length >= 5) {
+      // Mark as prompted for this session immediately to avoid double prompts 
+      // if the user adds multiple books quickly or before the alert is dismissed
+      hasPromptedThisSession = true;
+
       Alert.alert(
         'Enjoying Shelf52?',
         "It looks like you've added 5 books with spines to your shelf! We'd love to hear from you. It would help us a lot if you could give us a 5-star rating on the App Store.",
