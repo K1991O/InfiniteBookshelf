@@ -67,7 +67,6 @@ function App() {
     // Log the persistent User ID for verification
     const fetchUserId = async () => {
       const userId = await userService.getPersistentUserId();
-      console.log('Persistent Persistent User ID:', userId);
     };
     fetchUserId();
   }, [loadBooksFromStorage]);

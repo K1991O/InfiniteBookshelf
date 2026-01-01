@@ -114,9 +114,6 @@ export async function getBookDetails(
   bookId: string,
 ): Promise<BookDetails | null> {
   try {
-
-    console.log('Getting book details for:', GOOGLE_CLOUD_KEY);
-
     const response = await fetch(
       `${BASE_URL}/volumes/${bookId}?key=${GOOGLE_CLOUD_KEY}`,
     );

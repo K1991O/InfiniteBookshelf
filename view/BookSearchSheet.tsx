@@ -26,6 +26,7 @@ import {
 } from '../services/booksApi';
 import { saveBook, updateBook, getBookById } from '../services/bookStorage';
 import { saveSpineImage } from '../services/imageStorage';
+import { checkAndPromptRating } from '../services/ratingService';
 
 import { BarcodeScanner } from './BarcodeScanner';
 import { SearchBar } from './SearchBar';
@@ -124,6 +125,7 @@ export function BookSearchSheet({
                 spineThumbnail: spinePath,
                 spineUploaded: true, // It came from server, so it's already "uploaded" in a sense, or at least synced
               });
+              checkAndPromptRating();
             }
           }
 
@@ -348,6 +350,7 @@ export function BookSearchSheet({
               spineThumbnail: spinePath,
               spineUploaded: true,
             });
+            checkAndPromptRating();
           }
         }
 

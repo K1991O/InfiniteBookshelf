@@ -16,6 +16,7 @@ import { removeBook, updateBook, TierConfig, loadTierConfig } from '../services/
 import { saveSpineImage, deleteSpineImage, resolveSpineImagePath } from '../services/imageStorage';
 import { uploadSpine, fetchSpine } from '../services/booksApi';
 import { userService } from '../services/userService';
+import { checkAndPromptRating } from '../services/ratingService';
 
 import { BookDetailItem } from './BookDetailItem';
 import { SpineCropper } from './SpineCropper';
@@ -214,6 +215,8 @@ export function BookDetailSheet({
           spineUploaded: true, // It's from the server
         });
 
+        checkAndPromptRating();
+
         if (onBookUpdated) onBookUpdated();
       }
     } catch (error) {
@@ -313,6 +316,8 @@ export function BookDetailSheet({
         thickness: newThickness,
         spineUploaded: false,
       });
+
+      checkAndPromptRating();
 
       if (onBookUpdated) onBookUpdated();
 
