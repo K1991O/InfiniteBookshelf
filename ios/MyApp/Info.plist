@@ -35,10 +35,10 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>We need access to your camera to scan book barcodes and take spine photos</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We need access to your photo library to save spine images</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>We need access to your photo library to save your tier list images</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We need access to your photo library to save spine images</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

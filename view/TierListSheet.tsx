@@ -211,15 +211,15 @@ export function TierListSheet({ visible, onClose, books, onUpdate }: TierListShe
       if (!viewShotRef.current) return;
       
       const uri = await captureRef(viewShotRef, {
-        format: 'png',
-        quality: 1,
-        width: finalExportWidth,
+        format: 'jpg',
+        quality: 0.9,
+        width: finalExportWidth > 2000 ? 2000 : finalExportWidth,
       });
       
       const shareOptions = {
         title: 'Share Tier List',
         url: Platform.OS === 'android' ? `file://${uri}` : uri,
-        type: 'image/png',
+        type: 'image/jpeg',
         failOnCancel: false,
       };
 
@@ -348,7 +348,7 @@ export function TierListSheet({ visible, onClose, books, onUpdate }: TierListShe
 
           {/* Hidden ViewShot for Export only */}
           <View style={{ position: 'absolute', left: -5000 }}>
-            <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }} style={{ backgroundColor: '#1A1A18', width: finalExportWidth }}>
+            <ViewShot ref={viewShotRef} options={{ format: 'jpg', quality: 0.9 }} style={{ backgroundColor: '#1A1A18', width: finalExportWidth }}>
               <View style={{ flexDirection: 'row' }}>
                 {/* Left Side: Tier List */}
                 <View style={{ width: TIER_LIST_EXPORT_WIDTH }}>
