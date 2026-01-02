@@ -1,4 +1,4 @@
-package com.boshi.shelf52
+package com.boshi.shelfless
 
 import android.os.Bundle
 import com.facebook.react.ReactActivity
