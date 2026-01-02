@@ -1,4 +1,10 @@
-# 📱 InfiniteBookshelf — React Native Setup
+# 📱 Shelfless — React Native Setup
+
+--------------------------------------------
+
+Reddit Page: https://www.reddit.com/r/Shelfless/
+
+--------------------------------------------
 
 This project is a React Native (TypeScript) application that can be run on:
 
