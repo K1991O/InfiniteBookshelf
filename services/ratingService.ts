@@ -1,16 +1,12 @@
 import { Alert, Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadBooks } from './bookStorage';
-// import { APP_STORE_ID, ANDROID_PACKAGE_NAME } from '@env';
+import { APP_STORE_ID, ANDROID_PACKAGE_NAME } from '@env';
 
 const RATING_PROMPTED_KEY = '@infinite_bookshelf:rating_prompted';
 
 // Session flag to prevent multiple prompts in a single app session
 let hasPromptedThisSession = false;
-
-// Replace with your actual App Store ID and Package Name
-const APP_STORE_ID = '6741481514'; 
-const ANDROID_PACKAGE_NAME = 'com.shelf52.infinitebookshelf';
 
 /**
  * Checks if the user has added at least 5 books with spine images 

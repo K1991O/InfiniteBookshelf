@@ -34,5 +34,7 @@ declare module '@env' {
   export const GOOGLE_CLOUD_KEY: string;
   export const BASE_URL: string;
   export const SPINE_API_BASE_URL: string;
+  export const APP_STORE_ID: string;
+  export const ANDROID_PACKAGE_NAME: string;
 }
 

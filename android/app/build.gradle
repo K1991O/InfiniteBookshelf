@@ -112,6 +112,12 @@ android {
                 storePassword MYAPP_RELEASE_STORE_PASSWORD
                 keyAlias MYAPP_RELEASE_KEY_ALIAS
                 keyPassword MYAPP_RELEASE_KEY_PASSWORD
+            } else if (System.getenv('MYAPP_RELEASE_STORE_PASSWORD') != null) {
+                // Support environment variables directly
+                storeFile file('my-upload-key.keystore')
+                storePassword System.getenv('MYAPP_RELEASE_STORE_PASSWORD')
+                keyAlias 'my-key-alias'
+                keyPassword System.getenv('MYAPP_RELEASE_KEY_PASSWORD')
             }
         }
     }
